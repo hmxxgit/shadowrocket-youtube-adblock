@@ -29,10 +29,10 @@ const rules=block(fs.readFileSync('youtube-adblock.module','utf8'),'URL Rewrite'
   const [pattern,replacement,type]=line.split(/\s+/);return {pattern:new RegExp(pattern),replacement,type};
 });
 const match=url=>rules.find(r=>r.pattern.test(url));
-test('non-init oad behavior retained while normal initialization and media are excluded',()=>{
-  for(const path of ['other_init?x=1&oad=1'])assert.equal(match('https://rr1.googlevideo.com/'+path).type,'reject-200');
+test('oad behavior restored exactly, with first-parameter and normal media exclusions',()=>{
+  for(const path of ['other_init?x=1&oad=1','initplayback?ack=1&oad=1','initplayback?x=1&oad'])assert.equal(match('https://rr1.googlevideo.com/'+path).type,'reject-200');
   // Preserve the exact reference condition; do not invent a broader first-param filter.
-  for(const path of ['initplayback?oad=1','initplayback?ack=1','initplayback?ack=1&oad=1','initplayback?x=1&oad','videoplayback?x=1&oad=1','dclk_video_ads?x=1&oad=1'])assert.equal(match('https://rr1.googlevideo.com/'+path),undefined);
+  for(const path of ['initplayback?oad=1','initplayback?ack=1','videoplayback?x=1&oad=1','dclk_video_ads?x=1&oad=1'])assert.equal(match('https://rr1.googlevideo.com/'+path),undefined);
 });
 test('ctier redirects reproduce upstream replacement and do not reject media',()=>{
   const url='https://rr1.googlevideo.com/videoplayback?id=123&ctier=L&x=1,ctier,tail';

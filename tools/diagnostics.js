@@ -1,5 +1,5 @@
 // Opt-in, allowlisted local diagnostics. Never forward native console/error text.
-const srVersion = '1.5.0';
+const srVersion = '1.5.1';
 const srScript = 'SCRIPT_KIND';
 const srNativeLog = typeof console.log === 'function' ? console.log.bind(console) : () => {};
 console = {log(){},info(){},debug(){},warn(){},error(){}};

@@ -1,8 +1,8 @@
-# v1.5.0 视频启动耗时诊断
+# v1.5.1 广告与启动耗时诊断
 
 普通模块默认关闭诊断，没有请求探针或计时存储。
 
-1. 更新原订阅至 1.5.0，停用旧 YouTube/UMP 模块；需要计时时关闭普通模块，临时启用 https://raw.githubusercontent.com/hmxxgit/shadowrocket-youtube-adblock/main/youtube-adblock-diagnostic.module 。不要同时启用两者。
+1. 更新原订阅至 1.5.1，停用旧 YouTube/UMP 模块；需要计时时关闭普通模块，临时启用 https://raw.githubusercontent.com/hmxxgit/shadowrocket-youtube-adblock/main/youtube-adblock-diagnostic.module 。不要同时启用两者。
 2. 编译/使用当前配置，确认现有证书可信、HTTPS 解密开启，重连并完全退出后重开 YouTube，打开一个普通视频。
 3. 在脚本日志搜索 `[YTAD]`，仅保留这些行。结束后关闭诊断模块，恢复普通模块并重连。
 
@@ -35,10 +35,12 @@
 - 缺少二进制正文或解析异常时原样放行，不重试、不重定向、不伪造空初始化响应。缓存恢复不会输出缓存值。
 - 只有 start 没有 finish 时，可能是引擎终止/超时/内存限制；JavaScript 不能在强制终止后可靠解释原因。响应 timeout 保持 60 秒。
 
-v1.5.0 正常 initplayback 避开 oad 空 200 和 ctier 302，不再被这些规则处理。仍未注册 UMP，所以不能把本次等待直接归因于本地解密。若仍看到旧 initplayback REJECT/空响应或 UMP 日志，核对其他模块、旧配置与实际 version。
+v1.5.1 恢复原版 oad 空 200，匹配的 &oad 初始化可能在脚本之前结束；ctier 仍排除初始化。仍未注册 UMP，所以不能把本次等待直接归因于本地解密。若仍看到旧 initplayback REJECT/空响应或 UMP 日志，核对其他模块、旧配置与实际 version。
 
 ## 隐私与结论限制
 
 诊断只允许版本、脚本种类、接口白名单、固定状态/原因、布尔值与有界耗时。无正文、头部、Cookie、Token、账号、完整查询、原始 ID 或密钥，不输出动态异常文本、不调用额外服务器、不上传日志。计时命名空间只保存本机哈希键、接口名、时间和重复标记。Shadowrocket 自身的完整日志不属于本脚本控制范围。
 
 已证实代码存在无条件重编码、能力对象替换和可改写正常 initplayback 的规则。它们是否是 iPhone 约 10 秒的主要来源、优化后实际速度及广告效果，仍待新版本的真实设备数据确认。`script http response sends data to client` 不能证明广告清理或性能改善。
+
+本版 cache_recovery 可能来自新隔离的兼容广告缓存，旧的自定义广告缓存不会被清除或继续套用。Ni/Br 恢复原文，但是否识别具体广告仍以 found/cleaned 为准。已复现旧白名单漏拦不等于确认手机缓存内容，详见 AD_FILTER_AUDIT.md。

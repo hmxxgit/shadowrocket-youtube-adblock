@@ -1,7 +1,7 @@
 // Cache corruption must not abort independent playback-response processing.
 // Repair only our own cache entry; never print raw values or exception text.
 function srReadCache(adapter, key, fallback={}) {
-  const owned=key==='SRYouTubeAdblockConfig'||key==='SRYouTubeAdblockAdvertiseInfo';
+  const owned=key==='SRYouTubeAdblockConfig'||(key==='SRYouTubeAdblockAdvertiseInfo'||key==='SRYouTubeCompatAdCacheV1');
   let raw;
   try{raw=adapter.getVal(key)}catch(error){srTrace('cache_recovery',{success:false,reason:'cache_read_failed'});return fallback;}
   if(raw==null||raw==='')return fallback;
@@ -26,7 +26,7 @@ function srReadCache(adapter, key, fallback={}) {
       }
     }
     if(repaired)return recover('cache_shape_invalid',value);
-  }else if(key==='SRYouTubeAdblockAdvertiseInfo'&&value.version!==undefined) {
+  }else if((key==='SRYouTubeAdblockAdvertiseInfo'||key==='SRYouTubeCompatAdCacheV1')&&value.version!==undefined) {
     const numbers=list=>Array.isArray(list)&&list.every(n=>Number.isInteger(n)&&n>0);
     const strings=list=>Array.isArray(list)&&list.every(s=>typeof s==='string');
     if(typeof value.version!=='string'||!numbers(value.whiteNo)||!numbers(value.blackNo)||!strings(value.whiteEml)||!strings(value.blackEml))

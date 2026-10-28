@@ -1,11 +1,4 @@
 // Playback updates are idempotent: no second traversal or full-body equality scan.
-function Ni(l){
- const changed=!!(l.adPlacements?.length||l.adSlots?.length||l.playbackTracking?.pageadViewthroughconversion);
- if(l.adPlacements?.length)l.adPlacements.length=0;
- if(l.adSlots?.length)l.adSlots.length=0;
- if(l.playbackTracking)delete l.playbackTracking.pageadViewthroughconversion;
- srAd(changed,changed);return changed;
-}
 function Si(l){
  const status=l.playabilityStatus;if(!status)return false;
  let changed=false;
@@ -18,12 +11,19 @@ function Si(l){
  if(status.backgroundPlayerRender.backgroundAbility.active!==true){status.backgroundPlayerRender.backgroundAbility.active=true;changed=true;}
  return changed;
 }
-function Br(l){const ads=Ni(l),abilities=Si(l);return ads||abilities;}
-function Ai(l){return{bodyChanged:Br(l),stateChanged:false};}
-function Vi(l,{state}){
+function srUpdatePlayer(l,captionLang){
+ const ads=!!(l.adPlacements?.length||l.adSlots?.length||l.playbackTracking?.pageadViewthroughconversion);
+ const status=l.playabilityStatus,pip=status?.pictureInPictureRender?.pictureInPictureAbility,bg=status?.backgroundPlayerRender?.backgroundAbility;
+ const abilities=!!status&&(!pip||pip.active!==true||pip.f4!==0||pip.f6!==0||pip.f8!==1||!bg||bg.active!==true);
+ // Br and Ni are the unchanged upstream functions. Track the outcome outside.
+ Br(l,captionLang);srAd(ads,ads);
+ return ads||abilities||captionLang!=='off';
+}
+function Ai(l,{params}){return{bodyChanged:srUpdatePlayer(l,params.captionLang),stateChanged:false};}
+function Vi(l,{params,state}){
  let changed=false,cacheLoaded=false;
  for(const content of l.contents){
-   if(content.player)changed=Br(content.player)||changed;
+   if(content.player)changed=srUpdatePlayer(content.player,params.captionLang)||changed;
    if(content.next){if(!cacheLoaded){state.adCache=si();cacheLoaded=true;}const ads=Ir(content.next,state.adCache);srAd(ads,ads);changed=ads||changed;}
  }
  return{bodyChanged:changed,stateChanged:cacheLoaded&&state.adCache.dirty};

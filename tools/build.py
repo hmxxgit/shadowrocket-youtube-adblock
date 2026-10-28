@@ -187,7 +187,9 @@ for kind, body in [('response', source), ('request', request), ('ump', core+'\n'
 # Default compatibility profile: the exact reviewed response bundle referenced
 # by the user's device-tested module, not the experimental UMP/feed processor.
 baseline = common(load('response'), 'F')
-baseline = function(baseline,'Ni','Si',source[source.index('function Ni('):source.index('function Si(')])
+# Preserve upstream Ni/Br verbatim; diagnostics/change detection live in callers.
+baseline = patch(baseline,'decodeParams(e){return e}},we=Ve;','decodeParams(e){return srCompatParams(e)}},we=Ve;')
+baseline = patch(baseline,'advertiseInfo:"SRYouTubeAdblockAdvertiseInfo"','advertiseInfo:"SRYouTubeCompatAdCacheV1"')
 baseline = patch(baseline, 'let e=l.playabilityStatus;e.pictureInPictureRender', 'let e=l.playabilityStatus;if(!e)return;e.pictureInPictureRender')
 # Keep normal Shorts shelves and tabs; retain upstream ad classification otherwise.
 baseline = patch(baseline, 'e.blackEml.includes(i)||/shorts(?!_pivot_item)/.test(i)', 'e.blackEml.includes(i)')
@@ -197,7 +199,7 @@ baseline = patch(baseline, 'function Tr(l,{state:e}){return{bodyChanged:Ir(l,e.a
 baseline = patch(baseline, 'try{Ki()}catch(l){console.log(String(l)),F.exit()}', 'try{Ki()}catch(l){srFailure("protobuf_invalid");F.exit()}')
 # Replace only known handler functions; field definitions remain pinned upstream.
 fast=(ROOT/'tools/playback-fastpath.js').read_text()
-for name,following in [('Ni','Si'),('Si','ce'),('Br','ni'),('Ai','Di'),('Vi','ri'),('ii',None),('Ki',None)]:
+for name,following in [('Si','ce'),('Ai','Di'),('Vi','ri'),('ii',None),('Ki',None)]:
     start=fast.index('function '+name+'(')
     next_function=fast.find('\nfunction ',start+1)
     replacement=fast[start:next_function if next_function!=-1 else len(fast)]
@@ -208,6 +210,11 @@ for name,following in [('Ni','Si'),('Si','ce'),('Br','ni'),('Ai','Di'),('Vi','ri
         begin=baseline.index('function '+name+'(')
         end=baseline.index('var uc=',begin) if name=='ii' else baseline.index('try{Ki()}',begin)
         baseline=baseline[:begin]+replacement+baseline[end:]
+begin=fast.index('function srUpdatePlayer(')
+end=fast.index('\nfunction ',begin+1)
+helper=fast[begin:end]
+baseline=baseline.replace('function Ai(',helper+'\nfunction Ai(',1)
+baseline=(ROOT/'tools/compat-params.js').read_text()+'\n'+baseline
 output=prefix.replace('TIMING_CAPTURE','true').replace('SCRIPT_KIND','response').replace('REQUIRE_BINARY','true').replace('IS_REQUEST','false')
 (ROOT/'scripts/youtube.response.compat.js').write_text(output+baseline+suffix)
 print('Built scripts/youtube.response.compat.js (default baseline profile)')

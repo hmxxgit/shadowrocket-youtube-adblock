@@ -1,6 +1,6 @@
 # Shadowrocket YouTube Adblock
 
-**v1.5.0：保留初始化请求，按需重写播放器响应。** 以用户在 iPhone 实测有效的 `YouTubeAd.sgmodule` 为配置基准，恢复其请求处理行为；必要的 Maasea 脚本与许可证固定在本仓库，不在运行时依赖镜像站、Maasea Raw 或远程 Worker。
+**v1.5.1：恢复原版广告清理、隔离兼容模式缓存，保留按需编码。** 以用户在 iPhone 实测有效的 `YouTubeAd.sgmodule` 为配置基准，恢复其请求处理行为；必要的 Maasea 脚本与许可证固定在本仓库，不在运行时依赖镜像站、Maasea Raw 或远程 Worker。
 
 ## 订阅与升级
 
@@ -8,15 +8,15 @@
 
 https://raw.githubusercontent.com/hmxxgit/shadowrocket-youtube-adblock/main/youtube-adblock.module
 
-更新到 **1.5.0**，停用其他 YouTube 模块及旧副本，对当前配置执行「使用配置／编译配置」，重连 Shadowrocket，完全退出并重新打开 YouTube。保留现有代理节点。原有可信证书可以沿用，但应确认 HTTPS 解密已开启。
+更新到 **1.5.1**，停用其他 YouTube 模块及旧副本，对当前配置执行「使用配置／编译配置」，重连 Shadowrocket，完全退出并重新打开 YouTube。保留现有代理节点。原有可信证书可以沿用，但应确认 HTTPS 解密已开启。
 
-不要把旧版直接网络 `REJECT` 的 initplayback 规则与本版混用。v1.5.0 明确让 `initplayback` 避开 oad 空 200 与 ctier 302，避免主动改写正常视频初始化。其他 oad、广告统计与播放器 Protobuf 过滤保留；依赖初始化空响应的广告分支效果需要重新实测，不能保证无广告。
+不要把旧版直接网络 `REJECT` 的 initplayback 规则与本版混用。v1.5.1 恢复 Maasea 原版 oad 空 200 条件，包括含 `&oad` 的初始化分支；不是网络 REJECT。ctier 仍排除 initplayback，其他统计与 Protobuf 过滤保留。恢复 oad 可能影响客户端回退等待，实际广告和启动速度均需真机复测。
 
 ## 默认行为与比较
 
 | 项目 | 自有旧实现的差异 | v1.4.0 默认配置 |
 | --- | --- | --- |
-| googlevideo oad | v1.1 起移除了该拦截并依赖本地 UMP | 保留其他请求的基准条件及 `reject-200`，排除 initplayback |
+| googlevideo oad | v1.1 起移除了该拦截并依赖本地 UMP | 恢复原版完整 oad 条件及 `reject-200`（包含匹配的初始化请求） |
 | ctier | 缺少基准重写 | 保留原替换串和 302，排除 initplayback |
 | 广告统计 | 缺少基准重写 | 恢复 ads、pagead/ptracking、qoe/adcontext 三条规则 |
 | MITM | 缺少统计域与 redirector 排除 | 同基准：`-redirector*.googlevideo.com,*.googlevideo.com,www.youtube.com,s.youtube.com,youtubei.googleapis.com` |
@@ -35,9 +35,9 @@ https://raw.githubusercontent.com/hmxxgit/shadowrocket-youtube-adblock/main/yout
 
 需要日志时，暂时关闭普通模块并启用 [诊断模块](https://raw.githubusercontent.com/hmxxgit/shadowrocket-youtube-adblock/main/youtube-adblock-diagnostic.module)，重新编译配置并重连。不要同时启用两个模块。详见 [DIAGNOSTICS.md](DIAGNOSTICS.md)。
 
-除正常初始化以外，符合规则的 oad 请求在 URL Rewrite 阶段返回空 200。initplayback 正常透传，默认不调用 UMP。`script http response sends data to client` 也不能证明清理了广告；播放器脚本是否识别并清理已有字段，以 `[YTAD]` 的 found/cleaned/finish 为准。
+符合原版条件的 oad 请求在 URL Rewrite 阶段返回空 200；不含 &oad 的普通初始化不受此规则影响，默认不调用 UMP。`script http response sends data to client` 也不能证明清理了广告；播放器脚本是否识别并清理已有字段，以 `[YTAD]` 的 found/cleaned/finish 为准。
 
-用户验证的是参考模块；**本仓库 v1.5.0 尚未获得新的 iPhone 实测证据**。本地规则/响应对照通过，不代表实际广告全部消失，也不能保证所有 App/地区/账号下的后台播放、锁屏音频、PiP 或系统控制中心行为。正常媒体 CDN 不被整体阻断，videoplayback 不被 oad 规则拒绝，但会按基准条件执行 ctier 重定向。
+用户验证的是参考模块；**本仓库 v1.5.1 尚未获得新的 iPhone 实测证据**。本地规则/响应对照通过，不代表实际广告全部消失，也不能保证所有 App/地区/账号下的后台播放、锁屏音频、PiP 或系统控制中心行为。正常媒体 CDN 不被整体阻断，videoplayback 不被 oad 规则拒绝，但会按基准条件执行 ctier 重定向。
 
 ## 开发与发布
 
@@ -60,3 +60,7 @@ npm test
 默认版本原本就未注册 UMP，所以没有证据将约 10 秒归因于本地解密/压缩/重加密。初始化被改写可能触发客户端回退，auto 引擎也可能带来启动开销，但手机上的主要等待位置仍未知。现在显式使用 JSC；响应 timeout 保持 60 秒，没有靠提前超时假装优化。UDP 拒绝维持原范围，其 QUIC→TCP 时序亦需实机观察。
 
 轻量耗时仅在临时诊断开启，字段说明见 DIAGNOSTICS.md。request_to_response_ms 是请求脚本到响应脚本的间隔，包含网络、服务端、下载和引擎调度，不是纯网络时间；缺少稳定 ID、配对失败或存储失败时为 null，不猜测。script_ms 也不包含脚本下载/编译/引擎启动。没有真实 iPhone 时序日志，不能把本地操作次数减少声称为启动时间已经改善。
+
+## v1.5.1 审计修复
+
+详见 [AD_FILTER_AUDIT.md](AD_FILTER_AUDIT.md)。已复现旧自定义白名单缓存使兼容广告条目漏拦，现隔离兼容广告缓存并保留旧数据；恢复 vendor 原文 Ni/Br，诊断与按需编码位于调用者；decodeParams 恢复合法上游参数的安全读取，损坏参数仍回退默认值。没有证据表明默认参数本身导致 Ni 不执行，也没有证据证明手机唯一根因。v1.5 的初始化 oad 排除已撤回，ctier 初始化排除和无需修改不编码的性能优化保留；未引入 UMP 或新上报。

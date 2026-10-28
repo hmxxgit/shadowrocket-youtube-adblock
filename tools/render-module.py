@@ -15,12 +15,12 @@ rewrites=source.split('[URL Rewrite]\n',1)[1].split('[Script]',1)[0].strip()
 # An init bootstrap may carry oad/ctier as well. Never turn it into an empty
 # response or a redirect: client fallback/retry behavior is outside the script.
 rewrites=rewrites.replace('(?!dclk_video_ads)',r'(?!dclk_video_ads|initplayback(?:[/?]|$))')
-rewrites=rewrites.replace('(dclk_video_ads|videoplayback\\?)',r'(dclk_video_ads|videoplayback\?|initplayback(?:[/?]|$))')
+# Restore the reviewed upstream oad condition exactly; keep only the ctier init exclusion.
 mitm=source.split('[MITM]\n',1)[1].strip()
 pattern=source.split('[Script]\n',1)[1].split('[MITM]',1)[0].split('pattern=',1)[1].split(',requires-body=',1)[0]
 base=f'https://raw.githubusercontent.com/{owner}/shadowrocket-youtube-adblock/{script_ref}'
 module=f'''#!name=YouTube Adblock
-#!desc=保留正常初始化；按需 Protobuf 去广告/后台/PiP；诊断耗时默认关闭。
+#!desc=Maasea oad 与原版广告清理；按需重编码；后台/PiP；诊断默认关闭。
 #!version={version}
 #!author=Maasea; compatibility adaptation: hmxxgit
 # Sources, original licenses and exact snapshot: NOTICE.md and vendor/

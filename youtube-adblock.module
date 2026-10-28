@@ -1,6 +1,6 @@
 #!name=YouTube Adblock
-#!desc=保留正常初始化；按需 Protobuf 去广告/后台/PiP；诊断耗时默认关闭。
-#!version=1.5.0
+#!desc=Maasea oad 与原版广告清理；按需重编码；后台/PiP；诊断默认关闭。
+#!version=1.5.1
 #!author=Maasea; compatibility adaptation: hmxxgit
 # Sources, original licenses and exact snapshot: NOTICE.md and vendor/
 # Script revision: b01b09460f553d12c315d12a7b4d8f6b78c2f577; diagnostic=false by default.
@@ -12,13 +12,13 @@ AND,((DOMAIN,youtubei.googleapis.com), (PROTOCOL,UDP)),REJECT
 
 [URL Rewrite]
 (^https?:\/\/[\w-]+\.googlevideo\.com\/(?!dclk_video_ads|initplayback(?:[/?]|$)).+?)&ctier=L(&.+?),ctier,(.+) $1$2$3 302
-^https?:\/\/[\w-]+\.googlevideo\.com\/(?!(dclk_video_ads|videoplayback\?|initplayback(?:[/?]|$))).+&oad _ reject-200
+^https?:\/\/[\w-]+\.googlevideo\.com\/(?!(dclk_video_ads|videoplayback\?)).+&oad _ reject-200
 ^https?:\/\/(www|s)\.youtube\.com\/api\/stats\/ads _ reject-200
 ^https?:\/\/(www|s)\.youtube\.com\/(pagead|ptracking) _ reject-200
 ^https?:\/\/s\.youtube\.com\/api\/stats\/qoe\?adcontext _ reject-200
 
 [Script]
-youtube.adblock.response = type=http-response,pattern=^https:\/\/youtubei\.googleapis\.com\/youtubei\/v1\/(browse|next|player|search|reel\/reel_watch_sequence|guide|account\/get_setting|get_watch),requires-body=1,max-size=-1,binary-body-mode=1,engine=jsc,timeout=60,argument=diagnostic=false,script-path=https://raw.githubusercontent.com/hmxxgit/shadowrocket-youtube-adblock/b01b09460f553d12c315d12a7b4d8f6b78c2f577/scripts/youtube.response.compat.js?v=1.5.0
+youtube.adblock.response = type=http-response,pattern=^https:\/\/youtubei\.googleapis\.com\/youtubei\/v1\/(browse|next|player|search|reel\/reel_watch_sequence|guide|account\/get_setting|get_watch),requires-body=1,max-size=-1,binary-body-mode=1,engine=jsc,timeout=60,argument=diagnostic=false,script-path=https://raw.githubusercontent.com/hmxxgit/shadowrocket-youtube-adblock/b01b09460f553d12c315d12a7b4d8f6b78c2f577/scripts/youtube.response.compat.js?v=1.5.1
 
 [MITM]
 hostname = %APPEND% -redirector*.googlevideo.com,*.googlevideo.com,www.youtube.com,s.youtube.com,youtubei.googleapis.com

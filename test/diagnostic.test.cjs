@@ -128,7 +128,7 @@ test('diagnostic serialization is strictly allowlisted and never forwards secret
   const out=await execute('ump',{body:new Uint8Array([255]),store,argument:'diagnostic=true&extra='+secret});
   for(const entry of events(out.logs)){
     for(const key of Object.keys(entry))assert.ok(['version','script','endpoint','event','success','entered','found','cleaned','pass','reason','script_ms','parse_ms','rewrite_ms','encode_ms','decrypt_ms','request_to_response_ms'].includes(key));
-    assert.equal(entry.version,'1.5.0');
+    assert.equal(entry.version,'1.5.1');
   }
   const text=out.logs.join('\n');
   for(const value of [secret,'SECRET_COOKIE','SECRET_QUERY','SECRET_AUTHORIZATION',key.toString('base64')])assert.ok(!text.includes(value));
@@ -242,7 +242,7 @@ test('baseline oad uses an empty successful response rather than the old v1.0 ne
     assert.equal(lines.length,1);assert.ok(lines[0].endsWith('_ reject-200'));
     assert.ok(!module.includes('URL-REGEX,'));
     const pattern=new RegExp(lines[0].split(' ')[0]);
-    assert.ok(!pattern.test('https://rr1.googlevideo.com/initplayback?ack=1&oad=1'));
+    assert.ok(pattern.test('https://rr1.googlevideo.com/initplayback?ack=1&oad=1'));
     assert.ok(pattern.test('https://rr1.googlevideo.com/other_init?ack=1&oad=1'));
     assert.ok(!pattern.test('https://rr1.googlevideo.com/videoplayback?ack=1&oad=1'));
     assert.ok(!pattern.test('https://rr1.googlevideo.com/dclk_video_ads?ack=1&oad=1'));

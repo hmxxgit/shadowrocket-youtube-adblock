@@ -107,11 +107,11 @@ test('timing cache is bounded/expired and disabled diagnostics never touches it'
  execute({phase:'request',diagnostic:true,id:'after-expiry',store,now:130000});assert.equal(Object.keys(JSON.parse(store.SRYouTubeTiming)).length,1);
  const off=execute({phase:'request',diagnostic:false,id:'off',store});assert.equal(off.counts.reads,0);assert.equal(off.counts.writes,0);
 });
-test('all initplayback variants bypass rewrite/redirect; normal mode has no observer or UMP',()=>{
+test('ordinary initplayback bypasses rewrites; explicit ad oad keeps upstream behavior without UMP',()=>{
  for(const name of ['youtube-adblock.module','youtube-adblock-diagnostic.module']){
    const module=fs.readFileSync(name,'utf8');
    const rewriteLines=module.split('[URL Rewrite]')[1].split('[Script]')[0].split('\n').map(x=>x.trim()).filter(x=>x.startsWith('^')||x.startsWith('(^'));
-   for(const query of ['', '?oad=1','?ack=1&oad=1','?id=123&ctier=L&x=1,ctier,tail','?ack=1&oad=1&ctier=L&x=1,ctier,tail']){
+   for(const query of ['', '?oad=1','?ack=1','?id=123&ctier=L&x=1,ctier,tail']){
      const url='https://rr1.googlevideo.com/initplayback'+query;
      assert.ok(!rewriteLines.some(line=>new RegExp(line.split(' ')[0]).test(url)),url);
    }
