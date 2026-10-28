@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## 1.2.0 — 2026-10-29
+
+- 首页过滤改为结构识别：补齐 `VideoWithContext → Element → VideoInfo → VideoContext → VideoContent` 下的 11 种公开广告标记路径，及推广视频、多图商品广告路径、明确广告布局；不按 `Sponsored` 文本或任意 `pagead` 字符串判定广告。
+- 在 Protobuf wire 层移除完整 repeated 列表成员，包括视频、广告主及按钮；删除广告后清理变空的 item section / Shorts shelf / 外层 shelf，混合列表只删广告成员。原本为空的 section 不删除。
+- `browse`、`next`、`search` 无需通过固定完整 schema 再编码；保留未知字段、未变内容的原始字节、重复 continuation action 和分页字段。未知外层包装仍可遍历，处理设置深度与字段数上限。
+- `get_watch` 与本地 UMP 继续共用首页/推荐过滤，保留 1.1.0 的视频广告移除和后台/PiP 标记。
+- 商品布局、Sponsored 标题或广告 URL 本身不作为删除依据；没有广告结构证据的推荐、商品内容、Shorts、观看记录及稍后观看条目保留。
+- 本机输出版本、feed 接口名及移除计数，并区分非二进制输入；不输出 URL 查询、Cookie、Token、正文或账号信息。没有上传或远程诊断。
+- MITM 域名、代理节点和订阅 URL 不变；所有脚本参数更新为 `?v=1.2.0`。
+- 43 项本地测试通过，包含结构路径、完整父容器移除、正常卡片保护、未知包装、缓存版本、本机日志及独立 AES/HMAC/gzip UMP 回归。未取得用户 iPhone 的真实响应或进行实机验证，不能保证所有当前/未来广告结构均命中。
+
 ## 1.1.0 — 2026-10-29
 
 ### 广告过滤

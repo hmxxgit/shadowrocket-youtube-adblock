@@ -25,6 +25,11 @@ The request script no longer returns empty media or redirects. Failed UMP decodi
 - [Maasea current module](https://github.com/Maasea/sgmodule/blob/65075cdb388fc5e3094afd7e7314c67b243f3525/YouTube.Enhance.sgmodule)
 - [Maasea local UMP implementation](https://github.com/Maasea/sgmodule/blob/2ead6ff5950d7722c4aa6658998904ef78eee531/Script/Youtube/youtube.ump.js)
 - [Maasea Shadowrocket/playback compatibility reports](https://github.com/Maasea/sgmodule/issues/108). Upstream tests Surge and does not guarantee other clients.
-- [app2smile Protobuf feed module](https://github.com/app2smile/rules/blob/master/module/youtube.sgmodule). Its scope explicitly excludes video ad breaks; no code copied.
+- [app2smile Protobuf feed filter](https://github.com/app2smile/rules/blob/1f3aae53152571e7b7d7d3e015256447ab41dc21/js/youtube.js) (MIT). `tools/feed-filter.js` adapts its factual field paths and parent-card removal approach. This file dates from 2024-04-28; repository latest revision checked was `df6366a7024e0b3f0aa3510c5b791eea6f3cba89` (2026-03-04). No claim is made that every path was freshly verified against current iPhone traffic. The MIT notice is included in `THIRD_PARTY_LICENSES.md`.
+- [YTLite iOS feed filtering](https://github.com/dayanch96/YTLite/blob/2e2925c7b9c0ef321635a0274c0b5ac238a153be/YTLite.x), latest revision checked 2026-10-17. Its Element compatibility/ad logging and section-level removal corroborate the need to identify whole card containers. Only layout-name/schema facts are referenced; no tweak code is bundled. This Shadowrocket module does not hook the App or guess unknown compatibility-options field numbers.
 
 Local tests use synthetic fixtures. Neither upstream maintenance nor passing these tests establishes successful filtering/background playback on the user's iPhone.
+
+## 1.2.0 feed-specific adaptation
+
+`tools/feed-filter.js` runs a bounded, wire-preserving visitor before the fixed generated feed schema, using only exact renderer/metadata paths and explicit ad layouts. It prunes repeated list members and newly emptied known parent renderers. Unchanged fields and repeated messages keep their raw bytes. The same visitor runs before UMP/get_watch processing; account/PiP/background logic stays as in 1.1.0. Raw title/URL substring heuristics are retired. All test fixtures are synthetic and contain no captured user information. Runtime diagnostics remain local and contain only endpoint names, counts and fixed status messages.

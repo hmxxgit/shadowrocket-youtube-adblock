@@ -2,19 +2,8 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
-const source = fs.readFileSync('scripts/youtube.response.js', 'utf8');
-function run(body, endpoint = 'player', extra = {}, expose = false) {
-  const results = [], logs = [], store = {};
-  const ctx = { Uint8Array, ArrayBuffer, TextEncoder, TextDecoder, console: {log: x => logs.push(x)},
-    $request: {url: 'https://youtubei.googleapis.com/youtubei/v1/' + endpoint, headers: {}},
-    $response: {body}, $done: x => results.push(x),
-    $persistentStore: { read: k => store[k] ?? null, write: (v,k) => {store[k] = v; return true;} },
-    $notification: {post: () => {}}, ...extra };
-  vm.runInNewContext(expose ? source.replace('try{Ki()}', 'globalThis.api={player:oe,shorts:zr,browse:qr,getWatch:ei,Ir,Fi,d,onesie:Wi,encrypted:xi,config:kr,settings:Qr};try{Ki()}') : source, ctx, {timeout: 2000});
-  assert.equal(results.length, 1, 'script must finish exactly once');
-  return {result: results[0], api: ctx.api, logs};
-}
-const api = run(new Uint8Array(), 'browse', {}, true).api;
+const {run,api}=require('./helpers.cjs');
+const fixtureBytes=require('./fixtures.cjs');
 test('player removes pre-roll/mid-roll slots and preserves unknown stream fields', () => {
   const message = api.player.create({adPlacements:[{}],adSlots:[{}]});
   api.d.onRead('', message, 1000, 2, Uint8Array.from([3, 1, 2, 3]));
@@ -35,23 +24,23 @@ test('Shorts removes ad entries while retaining ordinary Shorts', () => {
   assert.equal(logs.length, 0);
   assert.equal(api.shorts.fromBinary(result.body).entries.length, 1);
 });
-test('home/recommendation ads are removed, ordinary entries retained', () => {
-  const ad = {}, normal = {};
-  const payload = new Uint8Array(1100); payload.set(new TextEncoder().encode('https://googleads.g.doubleclick.net/pagead/ads'), 20);
-  api.d.onRead('', ad, 999, 2, payload);
-  api.d.onRead('', normal, 998, 2, new Uint8Array([1,0]));
-  const fixture = {richItemContents:[normal, ad]};
-  const cache = {whiteNo:[],blackNo:[],whiteEml:[],blackEml:['inline_injection_entrypoint_layout.eml'],dirty:false};
-  assert.equal(api.Ir(fixture, cache), true);
-  assert.equal(fixture.richItemContents.length, 1);
-  assert.equal(fixture.richItemContents[0], normal);
-  assert.equal(api.Fi({renderInfo:{layoutRender:{eml:'shorts_video_layout.eml'}}}, cache), false);
+test('home/recommendation structured cards removed while normal entries retained', () => {
+  const ad=api.item.fromBinary(fixtureBytes.card({ad:true}));
+  const normal=api.item.fromBinary(fixtureBytes.card({title:'Sponsored is a title'}));
+  const fixture={richItemContents:[normal,ad]};
+  assert.equal(api.Ir(fixture,{}),true);
+  assert.equal(fixture.richItemContents.length,1);
+  assert.equal(fixture.richItemContents[0],normal);
+  assert.equal(api.Fi({renderInfo:{layoutRender:{eml:'shorts_video_layout.eml'}}}),false);
 });
-test('get_watch nested player slots are removed', () => {
-  const bytes = api.getWatch.toBinary(api.getWatch.create({contents:[{player:{adPlacements:[{}],adSlots:[{}]}}]}));
+test('get_watch nested player slots and whole sponsored sections are removed', () => {
+  const message=api.getWatch.create({contents:[{player:{adPlacements:[{}],adSlots:[{}]}}]});
+  message.contents[0].next=api.next.fromBinary(fixtureBytes.feed([fixtureBytes.section([fixtureBytes.card({ad:true})]),fixtureBytes.section([fixtureBytes.card()])],'next'));
+  const bytes=api.getWatch.toBinary(message);
   const out = run(bytes, 'get_watch');
   assert.equal(out.logs.length, 0);
   assert.equal(api.getWatch.fromBinary(out.result.body).contents[0].player.adSlots.length, 0);
+  assert.deepEqual(Buffer.from(api.next.toBinary(api.getWatch.fromBinary(out.result.body).contents[0].next)),fixtureBytes.feed([fixtureBytes.section([fixtureBytes.card()])],'next'));
 });
 test('malformed and non-binary responses pass through', () => {
   for (const body of [undefined, '<html>error</html>', '{"error":"retry"}', Uint8Array.from([255])]) {
@@ -90,18 +79,13 @@ test('background/PiP flags restored without altering subtitle or unknown permiss
   assert.deepEqual(Array.from(api.d.list(result.playabilityStatus.backgroundPlayerRender)[0].data),[1]);
   assert.deepEqual(Array.from(api.d.list(result.captions)[0].data),[3,97,98,99]);
 });
-test('mixed layout/field ads are inspected individually, including short payloads and later unknown fields', () => {
-  const normal={}, ad={};
-  api.d.onRead('',normal,999,2,new TextEncoder().encode('pagead tutorial'));
-  api.d.onRead('',ad,999,2,new Uint8Array([1,0]));
-  api.d.onRead('',ad,1000,2,new TextEncoder().encode('https://googleads.g.doubleclick.net/pagead/ads'));
+test('mixed cards with stale cache are inspected structurally, unrelated ad URL text retained', () => {
+  const normal=api.item.fromBinary(fixtureBytes.card({title:'https://googleads.g.doubleclick.net/pagead/ads'}));
+  const ad=api.item.fromBinary(fixtureBytes.card({ad:true,variant:6,label:'广告'}));
   const fixture={richItemContents:[normal,ad]};
-  const stale={whiteNo:[999,1000],blackNo:[999],whiteEml:['same_layout'],blackEml:[],dirty:false};
-  api.Ir(fixture,stale);
+  api.Ir(fixture,{whiteNo:[224590612],blackNo:[],whiteEml:['video_card.eml'],blackEml:[]});
   assert.equal(fixture.richItemContents.length,1);
   assert.equal(fixture.richItemContents[0],normal);
-  const content={};api.d.onRead('',content,88,2,new TextEncoder().encode('https://googleads.g.doubleclick.net/pagead/ads'));
-  assert.equal(api.Fi({renderInfo:{layoutRender:{eml:'same_layout'}},videoInfo:{videoContext:{videoContent:content}}},stale),true);
 });
 test('bodyBytes and typed array views are accepted without stale encoding/length', () => {
   const bytes=api.player.toBinary(api.player.create({adSlots:[{}],playabilityStatus:{}}));
@@ -192,7 +176,9 @@ async function umpRun(body,store){
 }
 for(const compression of [0,1])test(`local encrypted UMP round trip removes ads/restores background (compression ${compression})`,async()=>{
   const key=Buffer.alloc(32,5),iv=Buffer.alloc(16,2);
-  const onesie=api.onesie.toBinary(api.onesie.create({contents:[{player:{adSlots:[{}],adPlacements:[{}],playabilityStatus:{}}}]}));
+  const container=api.onesie.create({contents:[{player:{adSlots:[{}],adPlacements:[{}],playabilityStatus:{}}}]});
+  container.contents[0].next=api.next.fromBinary(fixtureBytes.feed([fixtureBytes.section([fixtureBytes.card({ad:true}),fixtureBytes.card({title:'Preserved recommendation'})])],'next'));
+  const onesie=api.onesie.toBinary(container);
   const plain=compression===1?zlib.gzipSync(onesie):onesie;
   const envelope=api.encrypted.toBinary(api.encrypted.create({...seal(plain,key,iv),compressionAlgorithm:compression}));
   const untouched=Buffer.from([9,8,7,6]);
@@ -207,7 +193,9 @@ for(const compression of [0,1])test(`local encrypted UMP round trip removes ads/
   assert.deepEqual(Buffer.from(env.hmac),hmac);
   const cipher=crypto.createDecipheriv('aes-128-ctr',key.subarray(0,16),env.iv);
   const plaintext=Buffer.concat([cipher.update(env.encryptedContent),cipher.final()]);
-  const decoded=api.onesie.fromBinary(compression===1?zlib.gunzipSync(plaintext):plaintext).contents[0].player;
+  const content=api.onesie.fromBinary(compression===1?zlib.gunzipSync(plaintext):plaintext).contents[0];
+  const decoded=content.player;
+  assert.deepEqual(Buffer.from(api.next.toBinary(content.next)),fixtureBytes.feed([fixtureBytes.section([fixtureBytes.card({title:'Preserved recommendation'})])],'next'));
   assert.equal(decoded.adSlots.length,0);assert.equal(decoded.adPlacements.length,0);
   assert.equal(decoded.playabilityStatus.backgroundPlayerRender.backgroundAbility.active,true);
   assert.equal(decoded.playabilityStatus.pictureInPictureRender.pictureInPictureAbility.active,true);

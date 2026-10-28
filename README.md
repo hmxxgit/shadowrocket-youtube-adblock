@@ -1,12 +1,12 @@
 # Shadowrocket YouTube Adblock
 
-用于 iOS 官方 YouTube App 的 Shadowrocket 远程模块，版本 **1.1.0**。复用 Maasea 的 Protobuf 和本地加密 UMP 处理逻辑，尝试过滤广告并恢复后台播放/PiP 响应标记。全部脚本在设备上运行，不使用第三方播放处理服务器。来源及修改见 [NOTICE.md](NOTICE.md)、[CHANGELOG.md](CHANGELOG.md)。
+用于 iOS 官方 YouTube App 的 Shadowrocket 远程模块，版本 **1.2.0**。复用 Maasea 的 Protobuf 和本地加密 UMP 处理逻辑，尝试过滤广告并恢复后台播放/PiP 响应标记。全部脚本在设备上运行，不使用第三方播放处理服务器。来源及修改见 [NOTICE.md](NOTICE.md)、[CHANGELOG.md](CHANGELOG.md)。
 
 ## 订阅与升级
 
 https://raw.githubusercontent.com/hmxxgit/shadowrocket-youtube-adblock/main/youtube-adblock.module
 
-已有 1.0.0：更新上述远程模块及全部脚本缓存，确认模块版本为 1.1.0，重连 Shadowrocket，再彻底退出并重新打开 YouTube。脚本 URL 带版本参数以促进重新下载。MITM 域名未改变，原有证书正常时不必重新安装。密钥需通过新的 `config` / `log_event` 响应获取，已有缓存中的视频不一定立即变化。
+已有旧版本：更新上述远程模块及全部脚本缓存，确认模块版本为 1.2.0，重连 Shadowrocket，再彻底退出并重新打开 YouTube。脚本 URL 带版本参数以促进重新下载。MITM 域名未改变，原有证书正常时不必重新安装。密钥需通过新的 `config` / `log_event` 响应获取，已有缓存中的视频不一定立即变化。
 
 首次安装：
 
@@ -21,7 +21,7 @@ https://raw.githubusercontent.com/hmxxgit/shadowrocket-youtube-adblock/main/yout
 
 - `player` / `get_watch`：移除已知 `adPlacements`、`adSlots` 及广告跟踪字段，面向片头、中插广告。
 - `reel/reel_watch_sequence`：移除明确标记 `isAd` 的 Shorts 广告，保留普通 Shorts。
-- `browse` / `next` / `search`：逐条检查已知广告布局与 Protobuf 广告特征，清理首页和推荐推广条目，不再因为之前同字段出现普通内容而全部放行。
+- `browse` / `next` / `search`：按广告元数据字段路径和明确广告布局识别赞助视频、推广与商品广告，移除完整列表成员并清理变空的父级 section/shelf；不按 `Sponsored` 字符串、标题或商品布局粗暴删除。wire 层处理可保留未知字段与重复 continuation action。
 - `config` / `log_event`：将加密 Onesie 密钥保存在设备本地；缺少密钥时移除日志请求的 hot-hash 以促使配置刷新。
 - `initplayback`：在设备本地验证 HMAC、AES-CTR 解密 UMP 的 type-25 Innertube 内容、处理播放器与推荐数据，再重新加密和计算 HMAC。支持未压缩和 gzip；其他 UMP 部分保留。初始化请求保持原目标和正文，不返回空播放响应。
 - `account/get_setting`：仅恢复后台播放设置项，不开启下载、不修改其他账号设置。
@@ -48,4 +48,14 @@ npm test
 
 固定上游快照在 `vendor/`，构建校验 SHA-256，生成文件在 `scripts/`。GitHub Actions 检查构建可复现性、JavaScript 语法及测试。
 
-17 项测试覆盖广告字段、Shorts、同字段混合广告、后台/PiP、设置项、字幕和未知字段保留、二进制类型、密钥缓存、规则范围和失败放行。加密 UMP 测试通过独立的 Node 原生 AES/HMAC/gzip 实现生成输入和校验输出。网络接口在这些执行路径的测试中被禁止。它们只证明合成数据的处理行为，不等同于实机去广告或后台播放验证。
+43 项本地合成测试覆盖首页 Sponsored 元数据、整卡及空父容器移除、正常推荐/Shorts/观看记录/稍后观看保留、未知包装、分页保留、脚本版本和本机日志，以及广告字段、Shorts、结构混合广告、后台/PiP、设置项、字幕和未知字段保留、二进制类型、密钥缓存、规则范围和失败放行。加密 UMP 测试通过独立的 Node 原生 AES/HMAC/gzip 实现生成输入和校验输出。网络接口在这些执行路径的测试中被禁止。它们只证明合成数据的处理行为，不等同于实机去广告或后台播放验证。
+
+## 首页广告排查
+
+版本 1.2.0 已修复可从代码确认的漏检：旧过滤依赖固定布局名/URL 特征，没有覆盖公开的广告元数据深层路径及未知外层容器，删除后也未清理空父 section。公开字段路径来自 app2smile 历史 Protobuf 实现，并结合仍维护的 Maasea 和 YTLite 的结构/布局线索；它们不是对用户当前响应的实测抓包结果。
+
+刷新模块与脚本后，重新连接并打开首页，Shadowrocket 脚本日志应出现 `YouTube Adblock 1.2.0: browse feed inspected; cards=...; sections=...`。这表示脚本收到了可解析的 wire 正文；`cards=0` 不证明没有广告，也可能是尚不支持的结构。`feed skipped (no binary body)` 表示输入没有可用二进制正文。
+
+如完全没有日志，应先查看模块是否启用、脚本下载是否成功，以及 `youtubei.googleapis.com` / `youtubei-att.googleapis.com` 是否命中现有 HTTPS 解密配置。**本环境不能远程检查用户手机上的 MITM 命中、缓存、证书或脚本日志**，因此没有把这些原因声称为已排除。日志只包含接口名/计数/固定状态，不存储、上传或输出响应内容、Cookie、Token、查询参数及账号信息。
+
+目前只移除有已知结构证据的广告。无法识别的新字段或布局会保留；未进行真实 iPhone 测试，不应将本地回归通过视为截图中的广告已经消失。

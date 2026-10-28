@@ -41,16 +41,13 @@ source = function(source, 'Si', 'ce', '''function Si(l){
 }
 ''')
 source = patch(source, 'Mi.find(r=>l.url.includes(r.path))', 'Mi.find(r=>l.url.split("?")[0].endsWith("/"+r.path))')
-# An absent marker in one item must not whitelist all future items of that field/layout.
-source = patch(source, 'if(l.length<1e3)return!1;', r'''if(l.length<6)return!1;if(l.length<1000){const text=new TextDecoder().decode(l);if(!/https?:\/\/(?:[\w-]+\.)*(?:doubleclick\.net|googlesyndication\.com|googleadservices\.com)\/[^\s]*pagead\//i.test(text))return!1;}''')
-source = function(source, 'Ei', 'Fi', 'function Ei(l,e){return ni(l.data)}')
-source = function(source, 'Fi', 'Li', '''function Fi(l,e){let ad=false;ce(l,"renderInfo",n=>{
- const layout=n.renderInfo?.layoutRender?.eml?.split("|")[0]??"";
- ad=layout==="inline_injection_entrypoint_layout.eml"||Ui(n.videoInfo?.videoContext?.videoContent);
- return true;
-});return ad}''')
-source = function(source, 'Li', 'Ir', 'function Li(l,e){return d.list(l).some(x=>Ei(x,e))||Fi(l,e)}')
-source = patch(source, 'var oi="1.0";', 'var oi="1.1";')
+# Replace text/URL heuristics with structural renderer paths and wire-preserving
+# list pruning, including containers unknown to the pinned generated schema.
+start = source.index('function ni(')
+end = source.index('function Tr(', start)
+source = source[:start] + (ROOT / 'tools/feed-filter.js').read_text() + source[end:]
+source = patch(source, 'try{Ki()}catch(l){console.log(String(l)),F.exit()}',
+               'try{srRunResponse()}catch(l){console.log("YouTube Adblock: response unchanged");F.exit()}')
 # Expose only background settings; leave download and unrelated account options alone.
 source = function(source, 'ji', 'Vi', '''function ji(l){
  if(!Array.isArray(l.settingItems))return{bodyChanged:false,stateChanged:false};
@@ -62,9 +59,10 @@ source = function(source, 'ji', 'Vi', '''function ji(l){
  return{bodyChanged:true,stateChanged:false};
 }''')
 # The same current Protobuf transforms are used for API and encrypted UMP responses.
-core = patch(source, 'try{Ki()}catch(l){console.log(String(l)),F.exit()}', '''globalThis.__srYouTubeTransform=function(bytes){
+core = patch(source, 'try{srRunResponse()}catch(l){console.log("YouTube Adblock: response unchanged");F.exit()}', '''globalThis.__srYouTubeTransform=function(bytes){
  const state={adCache:si(),config:ci()};
- const message=Wi.fromBinary(bytes);
+ const filtered=srRewriteFeed(bytes);
+ const message=Wi.fromBinary(filtered.bytes);
  Vi(message,{params:ai(),state});
  return Wi.toBinary(message);
 }''')
