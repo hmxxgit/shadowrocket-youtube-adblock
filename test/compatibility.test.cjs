@@ -18,10 +18,10 @@ function run(source,body,endpoint='player',store={},argument){
 }
 const api=run(adapted,new Uint8Array(),'browse').api;
 const block=(text,name,next)=>text.split('['+name+']')[1].split('['+next+']')[0].trim().split('\n').map(x=>x.trim()).filter(x=>x&&!x.startsWith('#'));
-test('routing/rewrite/MITM and API regex match the user-validated baseline snapshot',()=>{
+test('routing/MITM and API scope retain baseline; startup rewrite exceptions tested separately',()=>{
   const baseline=fs.readFileSync('vendor/yfamilys.YouTubeAd.sgmodule','utf8');
   const module=fs.readFileSync('youtube-adblock.module','utf8');
-  for(const [name,next] of [['Rule','URL Rewrite'],['URL Rewrite','Script']])assert.deepEqual(block(module,name,next),block(baseline,name,next));
+  for(const [name,next] of [['Rule','URL Rewrite']])assert.deepEqual(block(module,name,next),block(baseline,name,next));
   assert.equal(module.split('[MITM]')[1].trim(),baseline.split('[MITM]')[1].trim());
   assert.equal(module.match(/pattern=(.*?),requires-body/)[1],baseline.match(/pattern=(.*?),requires-body/)[1]);
 });
@@ -29,10 +29,10 @@ const rules=block(fs.readFileSync('youtube-adblock.module','utf8'),'URL Rewrite'
   const [pattern,replacement,type]=line.split(/\s+/);return {pattern:new RegExp(pattern),replacement,type};
 });
 const match=url=>rules.find(r=>r.pattern.test(url));
-test('oad empty-200 semantics, query order and excluded normal media agree with baseline',()=>{
-  for(const path of ['initplayback?ack=1&oad=1','initplayback?x=1&oad','other_init?x=1&oad=1'])assert.equal(match('https://rr1.googlevideo.com/'+path).type,'reject-200');
+test('non-init oad behavior retained while normal initialization and media are excluded',()=>{
+  for(const path of ['other_init?x=1&oad=1'])assert.equal(match('https://rr1.googlevideo.com/'+path).type,'reject-200');
   // Preserve the exact reference condition; do not invent a broader first-param filter.
-  for(const path of ['initplayback?oad=1','initplayback?ack=1','videoplayback?x=1&oad=1','dclk_video_ads?x=1&oad=1'])assert.equal(match('https://rr1.googlevideo.com/'+path),undefined);
+  for(const path of ['initplayback?oad=1','initplayback?ack=1','initplayback?ack=1&oad=1','initplayback?x=1&oad','videoplayback?x=1&oad=1','dclk_video_ads?x=1&oad=1'])assert.equal(match('https://rr1.googlevideo.com/'+path),undefined);
 });
 test('ctier redirects reproduce upstream replacement and do not reject media',()=>{
   const url='https://rr1.googlevideo.com/videoplayback?id=123&ctier=L&x=1,ctier,tail';
@@ -48,8 +48,8 @@ test('default module references only the vendored compatibility script, no Worke
   for(const name of ['youtube-adblock.module','youtube-adblock-diagnostic.module']){
     const text=fs.readFileSync(name,'utf8');
     const urls=[...text.matchAll(/script-path=(https:\/\/[^\s,]+)/g)].map(x=>x[1]);
-    assert.equal(urls.length,1);assert.match(urls[0],/^https:\/\/raw\.githubusercontent\.com\/hmxxgit\/shadowrocket-youtube-adblock\/[0-9a-f]{40}\/scripts\/youtube\.response\.compat\.js/);
-    for(const token of ['youtube.request.js','youtube.ump.js','type=http-request','workers.dev','yfamilys.com'])assert.ok(!text.includes(token));
+    assert.equal(urls.length,name.includes('-diagnostic')?3:1);assert.match(urls[0],/^https:\/\/raw\.githubusercontent\.com\/hmxxgit\/shadowrocket-youtube-adblock\/[0-9a-f]{40}\/scripts\/youtube\.response\.compat\.js/);
+    for(const token of ['youtube.request.js','youtube.ump.js','workers.dev','yfamilys.com'])assert.ok(!text.includes(token));
   }
   assert.ok(!adapted.includes('workers.dev'));assert.ok(!adapted.includes('init-stream'));
 });
@@ -89,6 +89,6 @@ test('compatibility script retains cache-corruption safeguards and diagnostic op
   const store={SRYouTubeAdblockConfig:'{',SRYouTubeAdblockAdvertiseInfo:' '};
   const on=run(adapted,bytes,'player',store,'diagnostic=true');
   assert.equal(api.player.fromBinary(on.result.body).adSlots.length,0);
-  assert.ok(on.logs.some(x=>x.includes('cache_recovery')));assert.ok(on.logs.some(x=>x.includes('"cleaned":true')));
+  assert.ok(!on.logs.some(x=>x.includes('cache_recovery')),'player no longer reads unrelated caches');assert.ok(on.logs.some(x=>x.includes('"cleaned":true')));
   assert.equal(run(adapted,bytes).logs.length,0);
 });

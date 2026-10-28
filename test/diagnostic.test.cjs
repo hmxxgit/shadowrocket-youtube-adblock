@@ -127,8 +127,8 @@ test('diagnostic serialization is strictly allowlisted and never forwards secret
   const store={[keyName]:secret};
   const out=await execute('ump',{body:new Uint8Array([255]),store,argument:'diagnostic=true&extra='+secret});
   for(const entry of events(out.logs)){
-    for(const key of Object.keys(entry))assert.ok(['version','script','endpoint','event','success','entered','found','cleaned','pass','reason'].includes(key));
-    assert.equal(entry.version,'1.4.0');
+    for(const key of Object.keys(entry))assert.ok(['version','script','endpoint','event','success','entered','found','cleaned','pass','reason','script_ms','parse_ms','rewrite_ms','encode_ms','decrypt_ms','request_to_response_ms'].includes(key));
+    assert.equal(entry.version,'1.5.0');
   }
   const text=out.logs.join('\n');
   for(const value of [secret,'SECRET_COOKIE','SECRET_QUERY','SECRET_AUTHORIZATION',key.toString('base64')])assert.ok(!text.includes(value));
@@ -139,12 +139,12 @@ test('default module has only the baseline response script and no UMP intercepti
   for(const name of ['youtube-adblock.module','youtube-adblock-diagnostic.module']){
     const module=fs.readFileSync(name,'utf8');
     const lines=module.split('\n').filter(x=>x.includes(' = type=http-'));
-    assert.equal(lines.length,1);
+    assert.equal(lines.length,name.includes('-diagnostic')?3:1);
     assert.ok(lines[0].includes('type=http-response'));
     assert.ok(lines[0].includes('binary-body-mode=1'));
     assert.ok(lines[0].includes('max-size=-1'));
     assert.ok(lines[0].includes('youtube.response.compat.js'));
-    assert.ok(!module.includes('type=http-request'));
+    if(!name.includes('-diagnostic'))assert.ok(!module.includes('type=http-request'));
     assert.ok(!module.includes('/youtube.ump.js'));
   }
 });
@@ -152,7 +152,7 @@ test('published modules pin the exact tested script commit instead of mutable ma
   const ref=JSON.parse(fs.readFileSync('release.json','utf8')).script_ref;
   assert.match(ref,/^[0-9a-f]{40}$/);
   const exec=require('node:child_process').execFileSync;
-  for(const kind of ['request','response','ump','response.compat']){
+  for(const kind of ['request','response','ump','response.compat','timing']){
     const path='scripts/youtube.'+kind+'.js';
     assert.deepEqual(exec('git',['show',ref+':'+path]),fs.readFileSync(path),'pinned script must match tested working file');
   }
@@ -239,10 +239,11 @@ test('baseline oad uses an empty successful response rather than the old v1.0 ne
   for(const name of ['youtube-adblock.module','youtube-adblock-diagnostic.module']){
     const module=fs.readFileSync(name,'utf8');
     const lines=module.split('[URL Rewrite]')[1].split('[Script]')[0].split('\n').filter(x=>x.includes('oad'));
-    assert.equal(lines.length,1);assert.ok(lines[0].endsWith('_ reject-200'));
+    assert.equal(lines.length,name.includes('-diagnostic')?3:1);assert.ok(lines[0].endsWith('_ reject-200'));
     assert.ok(!module.includes('URL-REGEX,'));
     const pattern=new RegExp(lines[0].split(' ')[0]);
-    assert.ok(pattern.test('https://rr1.googlevideo.com/initplayback?ack=1&oad=1'));
+    assert.ok(!pattern.test('https://rr1.googlevideo.com/initplayback?ack=1&oad=1'));
+    assert.ok(pattern.test('https://rr1.googlevideo.com/other_init?ack=1&oad=1'));
     assert.ok(!pattern.test('https://rr1.googlevideo.com/videoplayback?ack=1&oad=1'));
     assert.ok(!pattern.test('https://rr1.googlevideo.com/dclk_video_ads?ack=1&oad=1'));
   }

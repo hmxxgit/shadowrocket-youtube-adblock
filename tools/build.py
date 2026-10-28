@@ -177,10 +177,10 @@ request = function(request,'It','Nt',"""function It(){
 }""")
 # Remove content-encoding only when the body has already been decoded by the engine;
 # log_event itself is unmodified, so keep its original encoding header here.
-prefix = (ROOT / 'tools/runtime-prefix.js').read_text().replace('DIAGNOSTICS_SOURCE',(ROOT / 'tools/diagnostics.js').read_text()).replace('CACHE_SOURCE',(ROOT / 'tools/cache.js').read_text())
+prefix = (ROOT / 'tools/runtime-prefix.js').read_text().replace('DIAGNOSTICS_SOURCE',(ROOT / 'tools/diagnostics.js').read_text()).replace('CACHE_SOURCE',(ROOT / 'tools/cache.js').read_text()).replace('TIMING_SOURCE',(ROOT / 'tools/timing.js').read_text())
 suffix = '\n}catch(error){srFailure(srState.reason!=="none"?srState.reason:"script_error");$done({});}\n})(console);\n'
 for kind, body in [('response', source), ('request', request), ('ump', core+'\n'+ump)]:
-    output = prefix.replace('SCRIPT_KIND',kind).replace('REQUIRE_BINARY', 'false' if kind=='request' else 'true').replace('IS_REQUEST', 'true' if kind=='request' else 'false')
+    output = prefix.replace('TIMING_CAPTURE','false').replace('SCRIPT_KIND',kind).replace('REQUIRE_BINARY', 'false' if kind=='request' else 'true').replace('IS_REQUEST', 'true' if kind=='request' else 'false')
     (ROOT / f'scripts/youtube.{kind}.js').write_text(output + body + suffix)
     print(f'Built scripts/youtube.{kind}.js')
 
@@ -195,6 +195,32 @@ baseline = patch(baseline, 'Mi.find(r=>l.url.includes(r.path))', 'Mi.find(r=>l.u
 baseline = patch(baseline, 'function Tr(l,{state:e}){return{bodyChanged:Ir(l,e.adCache),stateChanged:e.adCache.dirty}}',
  'function Tr(l,{state:e}){const changed=Ir(l,e.adCache);srAd(changed,changed);return{bodyChanged:changed,stateChanged:e.adCache.dirty}}')
 baseline = patch(baseline, 'try{Ki()}catch(l){console.log(String(l)),F.exit()}', 'try{Ki()}catch(l){srFailure("protobuf_invalid");F.exit()}')
-output=prefix.replace('SCRIPT_KIND','response').replace('REQUIRE_BINARY','true').replace('IS_REQUEST','false')
+# Replace only known handler functions; field definitions remain pinned upstream.
+fast=(ROOT/'tools/playback-fastpath.js').read_text()
+for name,following in [('Ni','Si'),('Si','ce'),('Br','ni'),('Ai','Di'),('Vi','ri'),('ii',None),('Ki',None)]:
+    start=fast.index('function '+name+'(')
+    next_function=fast.find('\nfunction ',start+1)
+    replacement=fast[start:next_function if next_function!=-1 else len(fast)]
+    if following:
+        baseline=function(baseline,name,following,replacement)
+    else:
+        # ii and Ki are immediately followed by a var declaration / entry try.
+        begin=baseline.index('function '+name+'(')
+        end=baseline.index('var uc=',begin) if name=='ii' else baseline.index('try{Ki()}',begin)
+        baseline=baseline[:begin]+replacement+baseline[end:]
+output=prefix.replace('TIMING_CAPTURE','true').replace('SCRIPT_KIND','response').replace('REQUIRE_BINARY','true').replace('IS_REQUEST','false')
 (ROOT/'scripts/youtube.response.compat.js').write_text(output+baseline+suffix)
 print('Built scripts/youtube.response.compat.js (default baseline profile)')
+
+# A tiny observer is loaded only by the opt-in diagnostic module. It never
+# reads a body or modifies a request/response, and never performs network I/O.
+probe="""(function(console){
+DIAGNOSTICS_SOURCE
+TIMING_SOURCE
+const phase=typeof $argument==='string'&&/(?:^|&)phase=request(?:&|$)/.test($argument)?'request':'response';
+if(phase==='request')srMarkTiming();else srTakeTiming();
+srFinish(false);$done({});
+})(console);
+"""
+probe=probe.replace('DIAGNOSTICS_SOURCE',(ROOT/'tools/diagnostics.js').read_text()).replace('TIMING_SOURCE',(ROOT/'tools/timing.js').read_text()).replace('SCRIPT_KIND','timing')
+(ROOT/'scripts/youtube.timing.js').write_text(probe)
