@@ -4,8 +4,8 @@ owner = sys.argv[1]
 assert re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9-]*', owner)
 base = f'https://raw.githubusercontent.com/{owner}/shadowrocket-youtube-adblock/main'
 module = r'''#!name=YouTube Adblock
-#!desc=iOS YouTube 官方 App 去广告；本地 Protobuf 重写；保留 Shorts；兼容性随 App 版本变化。
-#!version=1.0.0
+#!desc=iOS YouTube 官方 App 去广告；本地 Protobuf/UMP 重写；尝试后台播放；保留 Shorts；兼容性随 App 版本变化。
+#!version=1.1.0
 # Apache-2.0; Maasea/sgmodule attribution and modifications: NOTICE.md
 # Refresh this remote module AND its remote scripts after updates.
 
@@ -17,12 +17,13 @@ AND,((DOMAIN-SUFFIX,googlevideo.com),(PROTOCOL,UDP)),REJECT
 
 [URL Rewrite]
 # Only explicit ad endpoints. Never reject /videoplayback or the entire media CDN.
-^https:\/\/[\w-]+\.googlevideo\.com\/initplayback\?(?:[^#]*&)?oad(?:=[^&#]*)?(?:&|$) - reject
 ^https:\/\/[\w-]+\.googlevideo\.com\/dclk_video_ads(?:[/?]|$) - reject
 
 [Script]
-youtube.adblock.response = type=http-response,pattern=^https:\/\/youtubei(?:-att)?\.googleapis\.com\/youtubei\/v1\/(browse|next|player|search|reel\/reel_watch_sequence|get_watch)(?:\?[^#]*)?$,requires-body=1,binary-body-mode=1,max-size=0,timeout=30,script-path=BASE/scripts/youtube.response.js
-youtube.adblock.init = type=http-request,pattern=^https:\/\/[\w-]+\.googlevideo\.com\/initplayback\?(?:[^#]*&)?ack(?:=[^&#]*)?(?:&|$),timeout=10,script-path=BASE/scripts/youtube.request.js
+youtube.adblock.response = type=http-response,pattern=^https:\/\/youtubei(?:-att)?\.googleapis\.com\/youtubei\/v1\/(browse|next|player|search|reel\/reel_watch_sequence|get_watch|config|log_event|account\/get_setting)(?:\?[^#]*)?$,requires-body=1,binary-body-mode=1,max-size=16777216,timeout=30,script-path=BASE/scripts/youtube.response.js?v=1.1.0
+youtube.adblock.init.request = type=http-request,pattern=^https:\/\/[\w-]+\.googlevideo\.com\/initplayback\?,requires-body=1,binary-body-mode=1,max-size=16777216,timeout=30,script-path=BASE/scripts/youtube.request.js?v=1.1.0
+youtube.adblock.log.request = type=http-request,pattern=^https:\/\/youtubei(?:-att)?\.googleapis\.com\/youtubei\/v1\/log_event(?:\?[^#]*)?$,requires-body=1,binary-body-mode=1,max-size=16777216,timeout=30,script-path=BASE/scripts/youtube.request.js?v=1.1.0
+youtube.adblock.init.response = type=http-response,pattern=^https:\/\/[\w-]+\.googlevideo\.com\/initplayback\?,requires-body=1,binary-body-mode=1,max-size=16777216,timeout=60,script-path=BASE/scripts/youtube.ump.js?v=1.1.0
 
 [MITM]
 hostname = %APPEND% youtubei.googleapis.com, youtubei-att.googleapis.com, *.googlevideo.com
