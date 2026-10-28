@@ -128,11 +128,12 @@ test('diagnostic serialization is strictly allowlisted and never forwards secret
   const out=await execute('ump',{body:new Uint8Array([255]),store,argument:'diagnostic=true&extra='+secret});
   for(const entry of events(out.logs)){
     for(const key of Object.keys(entry))assert.ok(['version','script','endpoint','event','success','entered','found','cleaned','pass','reason'].includes(key));
-    assert.equal(entry.version,'1.3.0');
+    assert.equal(entry.version,'1.3.1');
   }
   const text=out.logs.join('\n');
   for(const value of [secret,'SECRET_COOKIE','SECRET_QUERY','SECRET_AUTHORIZATION',key.toString('base64')])assert.ok(!text.includes(value));
-  assert.equal(find(out.logs,'finish').reason,'script_error');
+  assert.equal(find(out.logs,'finish').reason,'missing_key');
+  assert.ok(events(out.logs).some(x=>x.event==='cache_recovery'&&x.reason==='cache_json_invalid'));
 });
 test('module script syntax, explicit binary limits, rule grouping and endpoint boundaries',()=>{
   for(const name of ['youtube-adblock.module','youtube-adblock-diagnostic.module']){
@@ -173,5 +174,92 @@ test('published modules pin the exact tested script commit instead of mutable ma
     const module=fs.readFileSync(name,'utf8');
     for(const match of module.matchAll(/script-path=(https:\/\/[^\s,]+)/g))assert.ok(match[1].includes('/'+ref+'/scripts/'));
     assert.ok(!module.includes('/main/scripts/'));
+  }
+});
+
+const adCacheName='SRYouTubeAdblockAdvertiseInfo';
+const goodAdCache=()=>JSON.stringify({version:'1.0',whiteNo:[],blackNo:[],whiteEml:[],blackEml:[]});
+const adPlayer=()=>api.player.toBinary(api.player.create({adSlots:[{}],adPlacements:[{}],playabilityStatus:{}}));
+for(const corruptKey of [keyName,adCacheName])test(`player survives corrupt JSON and invalid object shapes in ${corruptKey}`,async()=>{
+  for(const raw of [' ', '{', '{"version":', 'null', '[]', '"cached string"', '42', '{"version":"1.0","whiteNo":false,"blackNo":[],"whiteEml":[],"blackEml":[]}']){
+    const store=cache();store[adCacheName]=goodAdCache();store[corruptKey]=raw;
+    // An ad-cache shape object is a harmless config dictionary, so use a bad
+    // platform record when specifically testing config shape validation.
+    if(corruptKey===keyName&&raw.startsWith('{"version"'))store[corruptKey]='{"youtube":{"clientKey":42}}';
+    const otherKey=corruptKey===keyName?adCacheName:keyName,before=store[otherKey];
+    const out=await execute('response',{endpoint:'player',body:adPlayer(),store});
+    const result=api.player.fromBinary(out.result.body);
+    assert.equal(result.adSlots.length,0);assert.equal(result.adPlacements.length,0);
+    assert.equal(result.playabilityStatus.backgroundPlayerRender.backgroundAbility.active,true);
+    assert.equal(store[otherKey],before,'repair must affect only the corrupt cache entry');
+    assert.ok(events(out.logs).some(x=>x.event==='cache_recovery'));
+    assert.equal(find(out.logs,'finish').success,true);assert.equal(find(out.logs,'ad_cleanup').cleaned,true);
+    assert.doesNotThrow(()=>JSON.parse(store[corruptKey]));
+  }
+});
+test('config repairs only a malformed platform record and preserves the other platform',async()=>{
+  const store=cache(),validOther=JSON.parse(store[keyName]).youtubeMusic;
+  store[keyName]=JSON.stringify({youtube:{clientKey:42},youtubeMusic:validOther});
+  await execute('response',{endpoint:'player',body:adPlayer(),store});
+  assert.deepEqual(JSON.parse(store[keyName]),{youtubeMusic:validOther});
+});
+test('request cache recovery still allows key refresh, without changing playback requests',async()=>{
+  const store={[keyName]:'{"youtube":'};
+  const out=await execute('request',{endpoint:'log_event',store,headers:{'X-Youtube-Hot-Hash-Data':'old'}});
+  assert.equal(out.result.headers['X-Youtube-Hot-Hash-Data'],undefined);
+  assert.equal(find(out.logs,'finish').reason,'key_refresh_requested');
+  assert.equal(out.result.response,undefined);assert.equal(out.result.url,undefined);
+});
+test('fresh config after corrupt cache restores the local UMP path',async()=>{
+  const store={[keyName]:' { ',[adCacheName]:'null'};
+  const bytes=api.config.toBinary(api.config.create({responseContext:{globalConfigGroup:{hotConfigGroup:{mediaHotConfig:{onesieHotConfig:{clientKey:new Uint8Array(key),encryptKey:new Uint8Array([1,2,3])}}}}}}));
+  const refreshed=await execute('response',{endpoint:'config',body:bytes,store});
+  assert.equal(find(refreshed.logs,'finish').reason,'key_cached');
+  assert.equal(JSON.parse(store[keyName]).youtube.clientKey,key.toString('base64'));
+  const message=api.onesie.toBinary(api.onesie.create({contents:[{player:{adSlots:[{}],playabilityStatus:{}}}]}));
+  const decrypted=await execute('ump',{body:encrypted(message),store});
+  assert.equal(find(decrypted.logs,'ump_decrypt').success,true);
+  assert.equal(find(decrypted.logs,'ad_cleanup').cleaned,true);
+});
+test('corrupt ad cache cannot abort UMP when its separate key cache is valid',async()=>{
+  const store=cache(),before=store[keyName];store[adCacheName]='{"version":';
+  const message=api.onesie.toBinary(api.onesie.create({contents:[{player:{adSlots:[{}],playabilityStatus:{}}}]}));
+  const out=await execute('ump',{body:encrypted(message),store});
+  assert.equal(store[keyName],before);assert.equal(find(out.logs,'ump_decrypt').success,true);
+  assert.equal(find(out.logs,'ad_cleanup').cleaned,true);assert.ok(out.result.body instanceof Uint8Array);
+});
+test('cache storage read/write failures never abort independent player cleanup or log exception text',()=>{
+  for(const readFails of [true,false]){
+    const out=run(adPlayer(),'player',{$argument:'diagnostic=true',$persistentStore:{read(){if(readFails)throw Error('SECRET_STORAGE_VALUE');return '{';},write(){throw Error('SECRET_STORAGE_VALUE');}}});
+    assert.equal(api.player.fromBinary(out.result.body).adSlots.length,0);
+    assert.equal(find(out.logs,'finish').success,true);
+    assert.ok(events(out.logs).some(x=>x.reason===(readFails?'cache_read_failed':'cache_write_failed')));
+    assert.ok(!out.logs.join('\n').includes('SECRET_STORAGE_VALUE'));
+  }
+});
+test('cache recovery remains silent by default and empty legacy arguments cannot cause JSON EOF',async()=>{
+  const store={[keyName]:'{',[adCacheName]:' '};
+  const out=await execute('response',{endpoint:'player',body:adPlayer(),store,diagnostic:false});
+  assert.equal(out.logs.length,0);assert.equal(api.player.fromBinary(out.result.body).adSlots.length,0);
+  for(const argument of ['','{']){
+    const response=run(adPlayer(),'player',{$argument:argument});
+    assert.equal(api.player.fromBinary(response.result.body).adSlots.length,0);
+  }
+});
+test('historical v1.0 oad rejection is absent and current initplayback requests/responses both match',()=>{
+  const exec=require('node:child_process').execFileSync;
+  const historic=exec('git',['show','f66c322:youtube-adblock.module'],{encoding:'utf8'});
+  assert.ok(historic.includes('oad(?:=[^&#]*)?(?:&|$) - reject'));
+  for(const name of ['youtube-adblock.module','youtube-adblock-diagnostic.module']){
+    const module=fs.readFileSync(name,'utf8');
+    const rewrites=module.split('[URL Rewrite]')[1].split('[Script]')[0].split('\n').filter(x=>x.startsWith('^')).map(x=>new RegExp(x.split(' ')[0]));
+    const initLines=module.split('\n').filter(x=>/youtube\.adblock\.init\.(request|response) =/.test(x));
+    assert.equal(initLines.length,2);
+    for(const query of ['oad=1','ack=1&oad=1','oad=1&ack=1','x=1&oad&ack=1']){
+      const url='https://rr1---sn-test.googlevideo.com/initplayback?'+query;
+      assert.ok(!rewrites.some(r=>r.test(url)),'no repository rewrite may reject initplayback');
+      for(const line of initLines)assert.ok(new RegExp(line.match(/pattern=(.*?),requires-body/)[1]).test(url));
+    }
+    assert.ok(!module.includes('URL-REGEX,'),'do not add a routing override to hide external conflicting rules');
   }
 });

@@ -1,6 +1,6 @@
 """Reproducible local-only YouTube runtime. Never fetch at build/runtime."""
 from pathlib import Path
-import hashlib
+import hashlib, re
 ROOT = Path(__file__).resolve().parent.parent
 DIGESTS = {
     'response': 'f98483d5f5017514f82502253c0db5ce2d4ffb7839887aa2cadc22666f5a7f12',
@@ -28,6 +28,11 @@ def common(source, platform):
     # Diagnostics use a simple non-JSON argument. Do not pass that string to the
     # upstream JSON options parser; all playback/subtitle defaults stay fixed.
     source = patch(source, 'decodeParams(e){return typeof $argument=="string"&&!$argument.includes("{{{")&&Object.assign(e,JSON.parse($argument)),e}', 'decodeParams(e){return e}')
+    # All live cache readers (including both bundles in UMP) use a guarded,
+    # shape-checked adapter. Binary response parsing stays fromBinary.
+    pattern=r'getJSON\(e,t=\{\}\)\{let ([nr])=this.getVal\(e\);return \1\?JSON.parse\(\1\):t\}'
+    assert len(re.findall(pattern,source))==1, 'Upstream cache reader changed'
+    source=re.sub(pattern,'getJSON(e,t={}){return srReadCache(this,e,t)}',source)
     return source
 source = common(load('response'), 'F')
 # Record only field presence/cleanup booleans, never payload values.
@@ -172,7 +177,7 @@ request = function(request,'It','Nt',"""function It(){
 }""")
 # Remove content-encoding only when the body has already been decoded by the engine;
 # log_event itself is unmodified, so keep its original encoding header here.
-prefix = (ROOT / 'tools/runtime-prefix.js').read_text().replace('DIAGNOSTICS_SOURCE',(ROOT / 'tools/diagnostics.js').read_text())
+prefix = (ROOT / 'tools/runtime-prefix.js').read_text().replace('DIAGNOSTICS_SOURCE',(ROOT / 'tools/diagnostics.js').read_text()).replace('CACHE_SOURCE',(ROOT / 'tools/cache.js').read_text())
 suffix = '\n}catch(error){srFailure(srState.reason!=="none"?srState.reason:"script_error");$done({});}\n})(console);\n'
 for kind, body in [('response', source), ('request', request), ('ump', core+'\n'+ump)]:
     output = prefix.replace('SCRIPT_KIND',kind).replace('REQUIRE_BINARY', 'false' if kind=='request' else 'true').replace('IS_REQUEST', 'true' if kind=='request' else 'false')

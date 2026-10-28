@@ -1,5 +1,5 @@
 // Opt-in, allowlisted local diagnostics. Never forward native console/error text.
-const srVersion = '1.3.0';
+const srVersion = '1.3.1';
 const srScript = 'SCRIPT_KIND';
 const srNativeLog = typeof console.log === 'function' ? console.log.bind(console) : () => {};
 console = {log(){},info(){},debug(){},warn(){},error(){}};
@@ -14,9 +14,9 @@ const srReasons = new Set([
   'key_cached','config_key_unavailable','key_refresh_requested','request_unchanged',
   'request_body_unavailable','request_key_absent','request_key_mismatch','request_invalid',
   'hmac_failed','crypto_failed','invalid_key','decompression_failed','compression_unsupported',
-  'body_limit','ump_invalid','no_encrypted_part','reencryption_failed','feed_unsupported'
+  'body_limit','ump_invalid','no_encrypted_part','reencryption_failed','feed_unsupported','cache_json_invalid','cache_shape_invalid','cache_read_failed','cache_write_failed'
 ]);
-const srEvents = new Set(['start','ump_enter','ump_decrypt','ump_reencrypt','ad_fields','ad_cleanup','finish']);
+const srEvents = new Set(['start','ump_enter','ump_decrypt','ump_reencrypt','ad_fields','ad_cleanup','finish','cache_recovery']);
 const srState = {success:true,reason:'none',found:false,cleaned:false,stage:'script_error'};
 function srReason(reason) { srState.reason = srReasons.has(reason) ? reason : 'script_error'; }
 function srFailure(reason) { srReason(reason);srState.success=false;return Error('YouTube processing failed'); }

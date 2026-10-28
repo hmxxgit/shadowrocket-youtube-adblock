@@ -1,12 +1,12 @@
 # Shadowrocket YouTube Adblock
 
-用于 iOS 官方 YouTube App 的 Shadowrocket 远程模块，版本 **1.3.0**。复用 Maasea 的 Protobuf 和本地加密 UMP 处理逻辑，尝试过滤广告并恢复后台播放/PiP 响应标记。全部脚本在设备上运行，不使用第三方播放处理服务器。来源及修改见 [NOTICE.md](NOTICE.md)、[CHANGELOG.md](CHANGELOG.md)。
+用于 iOS 官方 YouTube App 的 Shadowrocket 远程模块，版本 **1.3.1**。复用 Maasea 的 Protobuf 和本地加密 UMP 处理逻辑，尝试过滤广告并恢复后台播放/PiP 响应标记。全部脚本在设备上运行，不使用第三方播放处理服务器。来源及修改见 [NOTICE.md](NOTICE.md)、[CHANGELOG.md](CHANGELOG.md)。
 
 ## 订阅与升级
 
 https://raw.githubusercontent.com/hmxxgit/shadowrocket-youtube-adblock/main/youtube-adblock.module
 
-已有旧版本：更新上述远程模块及全部脚本缓存，确认模块版本为 1.3.0，重连 Shadowrocket，再彻底退出并重新打开 YouTube。脚本固定到 `release.json` 中的不可变 Git 提交，避免同一模块混用 main 的旧缓存；更新模块后还需对当前配置执行「使用配置/编译配置」以获取新脚本。MITM 域名未改变，原有证书正常时不必重新安装。密钥需通过新的 `config` / `log_event` 响应获取，已有缓存中的视频不一定立即变化。
+已有旧版本：更新上述远程模块及全部脚本缓存，确认模块版本为 1.3.1，重连 Shadowrocket，再彻底退出并重新打开 YouTube。脚本固定到 `release.json` 中的不可变 Git 提交，避免同一模块混用 main 的旧缓存；更新模块后还需对当前配置执行「使用配置/编译配置」以获取新脚本。MITM 域名未改变，原有证书正常时不必重新安装。密钥需通过新的 `config` / `log_event` 响应获取，已有缓存中的视频不一定立即变化。
 
 首次安装：
 
@@ -48,7 +48,7 @@ npm test
 
 固定上游快照在 `vendor/`，构建校验 SHA-256，生成文件在 `scripts/`。GitHub Actions 检查构建可复现性、JavaScript 语法及测试。
 
-60 项本地合成测试覆盖首页 Sponsored 元数据、整卡及空父容器移除、正常推荐/Shorts/观看记录/稍后观看保留、未知包装、分页保留、脚本版本和本机日志，以及广告字段、Shorts、结构混合广告、后台/PiP、设置项、字幕和未知字段保留、二进制类型、密钥缓存、规则范围和失败放行。加密 UMP 测试通过独立的 Node 原生 AES/HMAC/gzip 实现生成输入和校验输出。网络接口在这些执行路径的测试中被禁止。它们只证明合成数据的处理行为，不等同于实机去广告或后台播放验证。
+69 项本地合成测试覆盖首页 Sponsored 元数据、整卡及空父容器移除、正常推荐/Shorts/观看记录/稍后观看保留、未知包装、分页保留、脚本版本和本机日志，以及广告字段、Shorts、结构混合广告、后台/PiP、设置项、字幕和未知字段保留、二进制类型、密钥缓存、规则范围和失败放行。加密 UMP 测试通过独立的 Node 原生 AES/HMAC/gzip 实现生成输入和校验输出。网络接口在这些执行路径的测试中被禁止。它们只证明合成数据的处理行为，不等同于实机去广告或后台播放验证。
 
 ## 临时诊断与视频广告排查
 
@@ -59,3 +59,11 @@ npm test
 ## 发布脚本版本
 
 构建时只读取固定的本地 vendor 文件。`release.json` 记录已审查脚本所在的 Git 提交，生成器同时输出普通/临时诊断模块。发布时先完成运行脚本的提交，再将该提交 SHA 写入 `release.json`、重新生成模块并提交，最后把两个提交一起推到 main。脚本内容随后变化时，必须更新此 SHA 和模块版本，不能只编辑 main 的脚本就声称旧订阅会自动使用新实现。不可变地址解决脚本版本一致性；模块/客户端缓存仍需按上文刷新和确认。
+
+## 1.3.1：旧拒绝规则与缓存损坏
+
+用户日志中的 `initplayback?…oad` REJECT 与本仓库 v1.0.0 的 URL Rewrite 完全相同，v1.1.0 起已删除。当前模块不包含该拒绝规则。若更新后仍命中它，需在手机中停用旧模块副本，或在当前配置的规则/URL 重写中搜索 `initplayback` / `oad`，定位来源并只禁用这一条冲突规则；若来自其他订阅模块，停用对应冲突条目/模块并交由其来源维护。更新本仓库不会替用户删除其他配置中的规则。操作后重新编译当前配置、重连，再检查 `initplayback` 的 `[YTAD] start` / `ump_enter`。
+
+`JSON Parse error: Unexpected EOF` 可由截断/空白的持久化缓存触发；旧版本空脚本参数也可能触发上游参数 JSON 解析。1.3.1 对两类本仓库缓存统一使用异常保护和类型校验，逐项恢复，避免独立的 player/get_watch/UMP 处理因此整体退出。坏密钥缓存需要等待 config/log_event 重新获取密钥；已有另一项正常缓存或其他平台的正常记录保留。回归测试覆盖损坏 JSON、null、数组、错误属性类型及存储读写错误，不打印缓存内容。
+
+Shadowrocket 的 `script http response sends data to client` 只表示发送响应，**不代表发现或清理广告**。应查看 `[YTAD]` 的 `ad_fields found=true`、`ad_cleanup cleaned=true` 及最终 `finish success=true,pass=false`。无新的真实 iPhone 测试，不承诺实际广告已经消失。

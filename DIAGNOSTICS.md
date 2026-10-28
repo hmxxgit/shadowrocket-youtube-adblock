@@ -1,8 +1,8 @@
-# v1.3.0 临时诊断（默认关闭）
+# v1.3.1 临时诊断（默认关闭）
 
 ## 手机操作
 
-1. 更新原 `youtube-adblock.module`，确认版本 **1.3.0**。只查看 GitHub 仓库版本不代表手机已更新。
+1. 更新原 `youtube-adblock.module`，确认版本 **1.3.1**。只查看 GitHub 仓库版本不代表手机已更新。
 2. 暂时关闭普通模块，导入并启用下面的诊断模块（只启用其中一个）：
 
    https://raw.githubusercontent.com/hmxxgit/shadowrocket-youtube-adblock/main/youtube-adblock-diagnostic.module
@@ -18,10 +18,10 @@
 每行是固定前缀加 JSON，例如：
 
 ```text
-[YTAD] {"version":"1.3.0","script":"response","endpoint":"player","event":"start","success":true}
-[YTAD] {"version":"1.3.0","script":"response","endpoint":"player","event":"ad_fields","found":true}
-[YTAD] {"version":"1.3.0","script":"response","endpoint":"player","event":"ad_cleanup","cleaned":true}
-[YTAD] {"version":"1.3.0","script":"response","endpoint":"player","event":"finish","success":true,"pass":false,"reason":"none"}
+[YTAD] {"version":"1.3.1","script":"response","endpoint":"player","event":"start","success":true}
+[YTAD] {"version":"1.3.1","script":"response","endpoint":"player","event":"ad_fields","found":true}
+[YTAD] {"version":"1.3.1","script":"response","endpoint":"player","event":"ad_cleanup","cleaned":true}
+[YTAD] {"version":"1.3.1","script":"response","endpoint":"player","event":"finish","success":true,"pass":false,"reason":"none"}
 ```
 
 **这是说明格式的合成示例，不是真机日志。**
@@ -36,6 +36,8 @@
 
 | reason | 含义 |
 | --- | --- |
+| `cache_json_invalid` / `cache_shape_invalid` | 缓存 JSON 或类型损坏；cache_recovery 表示使用安全默认值继续处理，不输出内容 |
+| `cache_read_failed` / `cache_write_failed` | 缓存存储读写失败，独立播放器处理继续；恢复发生在内存中，不保证修复已写入磁盘 |
 | `missing_key` | 当前平台尚无可用缓存密钥，未进入解密；观察后续 config/log_event |
 | `key_cached` | config/log_event 中的已有密钥结构已读取/缓存，原响应未改 |
 | `config_key_unavailable` | 本次 config/log_event 没有完整已知密钥结构 |
@@ -69,3 +71,10 @@
 ## 隐私
 
 诊断默认关闭。启用后只允许版本、脚本种类、白名单接口名、固定事件/原因代码和布尔值。没有动态错误字符串、时间、完整主机/URL、查询、头部、账号、请求/响应正文或密钥。原上游 console 输出在适配作用域内被屏蔽，避免异常文本或调试输出泄漏数据。没有写入诊断历史、上传日志或调用远程诊断服务。Shadowrocket 自身的请求日志不属于本脚本控制范围，请勿把其完整导出当作这些安全诊断行。
+
+## 真实日志对应的两项修复
+
+- `URL-REGEX,...initplayback?...oad...,REJECT` 可追溯到本仓库 v1.0.0（提交 f66c322），v1.1.0 已移除。请在 Shadowrocket 中关闭旧 v1.0 副本，并检查当前配置的「规则」与「URL 重写」里是否复制了同一条规则。若来源是其他订阅，仅停用对应冲突规则/模块；本仓库不修改其他配置。重新编译当前配置并重连后，确认同一初始化请求不再被那条规则 REJECT。外部规则仍阻断时，任何响应脚本都无法保证执行。
+- `JSON Parse error: Unexpected EOF`：现有直接 getJSON 读取路径未捕获解析异常。1.3.1 统一保护三个运行脚本及 UMP 内嵌处理器的缓存读取，校验对象/数组/键记录类型。损坏项恢复为安全默认值，不清除另一份正常缓存；config/log_event 可重新填充密钥。没有堆栈或缓存样本时，不能断言日志具体来自哪一个缓存键。Protobuf 正文继续使用二进制 fromBinary，不把播放器响应当 JSON 解析。
+
+`cache_recovery success=true` 表示已在内存使用安全默认/修复值，不表示广告清理成功，也不保证持久化修复写入成功。写入异常有独立 `cache_write_failed`；这些恢复事件不会把本来可继续处理的播放器标为失败。`script http response sends data to client` 也不作为清理成功证据。
