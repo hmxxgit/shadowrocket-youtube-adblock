@@ -183,3 +183,18 @@ for kind, body in [('response', source), ('request', request), ('ump', core+'\n'
     output = prefix.replace('SCRIPT_KIND',kind).replace('REQUIRE_BINARY', 'false' if kind=='request' else 'true').replace('IS_REQUEST', 'true' if kind=='request' else 'false')
     (ROOT / f'scripts/youtube.{kind}.js').write_text(output + body + suffix)
     print(f'Built scripts/youtube.{kind}.js')
+
+# Default compatibility profile: the exact reviewed response bundle referenced
+# by the user's device-tested module, not the experimental UMP/feed processor.
+baseline = common(load('response'), 'F')
+baseline = function(baseline,'Ni','Si',source[source.index('function Ni('):source.index('function Si(')])
+baseline = patch(baseline, 'let e=l.playabilityStatus;e.pictureInPictureRender', 'let e=l.playabilityStatus;if(!e)return;e.pictureInPictureRender')
+# Keep normal Shorts shelves and tabs; retain upstream ad classification otherwise.
+baseline = patch(baseline, 'e.blackEml.includes(i)||/shorts(?!_pivot_item)/.test(i)', 'e.blackEml.includes(i)')
+baseline = patch(baseline, 'Mi.find(r=>l.url.includes(r.path))', 'Mi.find(r=>l.url.split("?")[0].endsWith("/"+r.path))')
+baseline = patch(baseline, 'function Tr(l,{state:e}){return{bodyChanged:Ir(l,e.adCache),stateChanged:e.adCache.dirty}}',
+ 'function Tr(l,{state:e}){const changed=Ir(l,e.adCache);srAd(changed,changed);return{bodyChanged:changed,stateChanged:e.adCache.dirty}}')
+baseline = patch(baseline, 'try{Ki()}catch(l){console.log(String(l)),F.exit()}', 'try{Ki()}catch(l){srFailure("protobuf_invalid");F.exit()}')
+output=prefix.replace('SCRIPT_KIND','response').replace('REQUIRE_BINARY','true').replace('IS_REQUEST','false')
+(ROOT/'scripts/youtube.response.compat.js').write_text(output+baseline+suffix)
+print('Built scripts/youtube.response.compat.js (default baseline profile)')

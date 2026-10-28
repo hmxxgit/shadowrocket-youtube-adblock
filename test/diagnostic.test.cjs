@@ -128,45 +128,31 @@ test('diagnostic serialization is strictly allowlisted and never forwards secret
   const out=await execute('ump',{body:new Uint8Array([255]),store,argument:'diagnostic=true&extra='+secret});
   for(const entry of events(out.logs)){
     for(const key of Object.keys(entry))assert.ok(['version','script','endpoint','event','success','entered','found','cleaned','pass','reason'].includes(key));
-    assert.equal(entry.version,'1.3.1');
+    assert.equal(entry.version,'1.4.0');
   }
   const text=out.logs.join('\n');
   for(const value of [secret,'SECRET_COOKIE','SECRET_QUERY','SECRET_AUTHORIZATION',key.toString('base64')])assert.ok(!text.includes(value));
   assert.equal(find(out.logs,'finish').reason,'missing_key');
   assert.ok(events(out.logs).some(x=>x.event==='cache_recovery'&&x.reason==='cache_json_invalid'));
 });
-test('module script syntax, explicit binary limits, rule grouping and endpoint boundaries',()=>{
+test('default module has only the baseline response script and no UMP interception',()=>{
   for(const name of ['youtube-adblock.module','youtube-adblock-diagnostic.module']){
-    const module=fs.readFileSync(name,'utf8'),diagnostic=name.includes('-diagnostic');
+    const module=fs.readFileSync(name,'utf8');
     const lines=module.split('\n').filter(x=>x.includes(' = type=http-'));
-    assert.equal(lines.length,4);
-    for(const line of lines){
-      const config=Object.fromEntries(line.slice(line.indexOf(' = ')+3).split(',').map(x=>[x.slice(0,x.indexOf('=')),x.slice(x.indexOf('=')+1)]));
-      assert.equal(config['requires-body'],'1');assert.equal(config['binary-body-mode'],'1');
-      assert.equal(config['max-size'],'16777216');assert.ok([30,60].includes(Number(config.timeout)));
-      assert.equal(config.argument,'diagnostic='+diagnostic);
-      const re=new RegExp(config.pattern);
-      if(config['script-path'].includes('youtube.response.js'))for(const endpoint of ['player','get_watch'])for(const host of ['youtubei.googleapis.com','youtubei-att.googleapis.com']){
-        assert.ok(re.test('https://'+host+'/youtubei/v1/'+endpoint));assert.ok(re.test('https://'+host+'/youtubei/v1/'+endpoint+'?alt=proto'));
-        assert.ok(!re.test('https://'+host+'/youtubei/v1/'+endpoint+'_other'));
-      }
-      if(config['script-path'].includes('youtube.ump.js')){
-        assert.ok(re.test('https://rr1---sn-a.googlevideo.com/initplayback?ack=1'));
-        assert.ok(re.test('https://rr1.googlevideo.com/initplayback?oad=1'));
-        assert.ok(!re.test('https://rr1.googlevideo.com/videoplayback?ack=1'));
-      }
-    }
-    const rules=module.split('[Rule]')[1].split('[URL Rewrite]')[0].split('\n').filter(x=>x.startsWith('AND,'));
-    assert.equal(rules.length,3);
-    for(const rule of rules)assert.match(rule,/^AND,\(\(DOMAIN(?:-SUFFIX)?,[a-z.-]+\),\(PROTOCOL,UDP\)\),REJECT$/);
-    assert.equal(module.match(/^hostname = (.*)$/m)[1],'%APPEND% youtubei.googleapis.com, youtubei-att.googleapis.com, *.googlevideo.com');
+    assert.equal(lines.length,1);
+    assert.ok(lines[0].includes('type=http-response'));
+    assert.ok(lines[0].includes('binary-body-mode=1'));
+    assert.ok(lines[0].includes('max-size=-1'));
+    assert.ok(lines[0].includes('youtube.response.compat.js'));
+    assert.ok(!module.includes('type=http-request'));
+    assert.ok(!module.includes('/youtube.ump.js'));
   }
 });
 test('published modules pin the exact tested script commit instead of mutable main',()=>{
   const ref=JSON.parse(fs.readFileSync('release.json','utf8')).script_ref;
   assert.match(ref,/^[0-9a-f]{40}$/);
   const exec=require('node:child_process').execFileSync;
-  for(const kind of ['request','response','ump']){
+  for(const kind of ['request','response','ump','response.compat']){
     const path='scripts/youtube.'+kind+'.js';
     assert.deepEqual(exec('git',['show',ref+':'+path]),fs.readFileSync(path),'pinned script must match tested working file');
   }
@@ -246,20 +232,18 @@ test('cache recovery remains silent by default and empty legacy arguments cannot
     assert.equal(api.player.fromBinary(response.result.body).adSlots.length,0);
   }
 });
-test('historical v1.0 oad rejection is absent and current initplayback requests/responses both match',()=>{
+test('baseline oad uses an empty successful response rather than the old v1.0 network reject',()=>{
   const exec=require('node:child_process').execFileSync;
   const historic=exec('git',['show','f66c322:youtube-adblock.module'],{encoding:'utf8'});
   assert.ok(historic.includes('oad(?:=[^&#]*)?(?:&|$) - reject'));
   for(const name of ['youtube-adblock.module','youtube-adblock-diagnostic.module']){
     const module=fs.readFileSync(name,'utf8');
-    const rewrites=module.split('[URL Rewrite]')[1].split('[Script]')[0].split('\n').filter(x=>x.startsWith('^')).map(x=>new RegExp(x.split(' ')[0]));
-    const initLines=module.split('\n').filter(x=>/youtube\.adblock\.init\.(request|response) =/.test(x));
-    assert.equal(initLines.length,2);
-    for(const query of ['oad=1','ack=1&oad=1','oad=1&ack=1','x=1&oad&ack=1']){
-      const url='https://rr1---sn-test.googlevideo.com/initplayback?'+query;
-      assert.ok(!rewrites.some(r=>r.test(url)),'no repository rewrite may reject initplayback');
-      for(const line of initLines)assert.ok(new RegExp(line.match(/pattern=(.*?),requires-body/)[1]).test(url));
-    }
-    assert.ok(!module.includes('URL-REGEX,'),'do not add a routing override to hide external conflicting rules');
+    const lines=module.split('[URL Rewrite]')[1].split('[Script]')[0].split('\n').filter(x=>x.includes('oad'));
+    assert.equal(lines.length,1);assert.ok(lines[0].endsWith('_ reject-200'));
+    assert.ok(!module.includes('URL-REGEX,'));
+    const pattern=new RegExp(lines[0].split(' ')[0]);
+    assert.ok(pattern.test('https://rr1.googlevideo.com/initplayback?ack=1&oad=1'));
+    assert.ok(!pattern.test('https://rr1.googlevideo.com/videoplayback?ack=1&oad=1'));
+    assert.ok(!pattern.test('https://rr1.googlevideo.com/dclk_video_ads?ack=1&oad=1'));
   }
 });

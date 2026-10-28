@@ -81,11 +81,11 @@ test('feed bodyBytes path uses the same structural filter',()=>{
 });
 test('MITM remains limited and cache version is consistent for all script references',()=>{
   const module=fs.readFileSync('youtube-adblock.module','utf8');
-  assert.equal(module.match(/^hostname = (.*)$/m)[1],'%APPEND% youtubei.googleapis.com, youtubei-att.googleapis.com, *.googlevideo.com');
+  assert.equal(module.match(/^hostname = (.*)$/m)[1],'%APPEND% -redirector*.googlevideo.com,*.googlevideo.com,www.youtube.com,s.youtube.com,youtubei.googleapis.com');
   const version=module.match(/#!version=(\S+)/)[1];
   for(const match of module.matchAll(/script-path=(\S+)/g))assert.ok(match[1].endsWith('?v='+version));
   const pattern=new RegExp(module.match(/type=http-response,pattern=(.*?),requires-body/)[1]);
-  for(const host of ['youtubei.googleapis.com','youtubei-att.googleapis.com'])for(const endpoint of ['browse','next','search'])assert.ok(pattern.test('https://'+host+'/youtubei/v1/'+endpoint+'?prettyPrint=false'));
+  for(const host of ['youtubei.googleapis.com'])for(const endpoint of ['browse','next','search'])assert.ok(pattern.test('https://'+host+'/youtubei/v1/'+endpoint+'?prettyPrint=false'));
 });
 test('opt-in local diagnostics distinguish processed and nonbinary feeds without user data',()=>{
   const marker='private_cookie_or_account_marker';

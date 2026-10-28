@@ -56,14 +56,14 @@ test('module limits script and reject rules to intended endpoints', () => {
   const module = fs.readFileSync('youtube-adblock.module','utf8');
   const pattern = module.match(/type=http-response,pattern=(.*?),requires-body/)[1];
   const re = new RegExp(pattern);
-  assert.ok(re.test('https://youtubei-att.googleapis.com/youtubei/v1/player?x=1'));
-  for (const url of ['https://example.com/youtubei/v1/player','https://youtubei.googleapis.com/youtubei/v1/player_extra']) assert.ok(!re.test(url));
+  assert.ok(re.test('https://youtubei.googleapis.com/youtubei/v1/player?x=1'));
+  for (const url of ['https://example.com/youtubei/v1/player','https://youtubei-att.googleapis.com/youtubei/v1/player']) assert.ok(!re.test(url));
   const rules = module.split('[URL Rewrite]')[1].split('[Script]')[0].split('\n').filter(x=>x.startsWith('^')).map(x=>new RegExp(x.split(' ')[0]));
-  assert.ok(rules.some(r=>r.test('https://rr1.googlevideo.com/dclk_video_ads?id=1')));
+  assert.ok(!rules.some(r=>r.test('https://rr1.googlevideo.com/dclk_video_ads?id=1')));
   assert.ok(!rules.some(r=>r.test('https://rr1.googlevideo.com/initplayback?oad=1')));
   for (const url of ['https://rr1.googlevideo.com/videoplayback?oad=1','https://rr1.googlevideo.com/initplayback?notoad=1']) assert.ok(!rules.some(r=>r.test(url)));
   for (const path of module.matchAll(/script-path=https:\/\/raw\.githubusercontent\.com\/[^/]+\/shadowrocket-youtube-adblock\/(?:main|[0-9a-f]{40})\/([^\s,]+)/g)) assert.ok(fs.existsSync(path[1].split("?")[0]));
-  assert.equal((module.match(/script-path=/g)||[]).length,4);
+  assert.equal((module.match(/script-path=/g)||[]).length,1);
 });
 
 test('background/PiP flags restored without altering subtitle or unknown permission data', () => {
