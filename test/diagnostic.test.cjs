@@ -161,3 +161,17 @@ test('module script syntax, explicit binary limits, rule grouping and endpoint b
     assert.equal(module.match(/^hostname = (.*)$/m)[1],'%APPEND% youtubei.googleapis.com, youtubei-att.googleapis.com, *.googlevideo.com');
   }
 });
+test('published modules pin the exact tested script commit instead of mutable main',()=>{
+  const ref=JSON.parse(fs.readFileSync('release.json','utf8')).script_ref;
+  assert.match(ref,/^[0-9a-f]{40}$/);
+  const exec=require('node:child_process').execFileSync;
+  for(const kind of ['request','response','ump']){
+    const path='scripts/youtube.'+kind+'.js';
+    assert.deepEqual(exec('git',['show',ref+':'+path]),fs.readFileSync(path),'pinned script must match tested working file');
+  }
+  for(const name of ['youtube-adblock.module','youtube-adblock-diagnostic.module']){
+    const module=fs.readFileSync(name,'utf8');
+    for(const match of module.matchAll(/script-path=(https:\/\/[^\s,]+)/g))assert.ok(match[1].includes('/'+ref+'/scripts/'));
+    assert.ok(!module.includes('/main/scripts/'));
+  }
+});
