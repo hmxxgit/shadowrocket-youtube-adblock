@@ -2,7 +2,7 @@
 #!desc=iOS YouTube 官方 App 去广告；本地 Protobuf/UMP 重写；尝试后台播放；保留 Shorts；兼容性随 App 版本变化。
 #!version=1.3.1
 # Apache-2.0; Maasea/sgmodule attribution and modifications: NOTICE.md
-# Script revision: 70e1d7d1ed41be1146228dbc5e997d38a93aa435; Temporary diagnostic mode enabled; disable the normal module first. Refresh module and recompile active config.
+# Script revision: aaa556d830563ee50d4ab07035bef83ff5183bac; Temporary diagnostic mode enabled; disable the normal module first. Refresh module and recompile active config.
 
 [Rule]
 # Force TCP only for the YouTube API and media hosts so MITM can inspect HTTPS.
@@ -15,10 +15,10 @@ AND,((DOMAIN-SUFFIX,googlevideo.com),(PROTOCOL,UDP)),REJECT
 ^https:\/\/[\w-]+\.googlevideo\.com\/dclk_video_ads(?:[/?]|$) - reject
 
 [Script]
-youtube.adblock.response = type=http-response,pattern=^https:\/\/youtubei(?:-att)?\.googleapis\.com\/youtubei\/v1\/(browse|next|player|search|reel\/reel_watch_sequence|get_watch|config|log_event|account\/get_setting)(?:\?[^#]*)?$,requires-body=1,binary-body-mode=1,max-size=16777216,timeout=30,argument=diagnostic=true,script-path=https://raw.githubusercontent.com/hmxxgit/shadowrocket-youtube-adblock/70e1d7d1ed41be1146228dbc5e997d38a93aa435/scripts/youtube.response.js?v=1.3.1
-youtube.adblock.init.request = type=http-request,pattern=^https:\/\/[\w-]+\.googlevideo\.com\/initplayback\?,requires-body=1,binary-body-mode=1,max-size=16777216,timeout=30,argument=diagnostic=true,script-path=https://raw.githubusercontent.com/hmxxgit/shadowrocket-youtube-adblock/70e1d7d1ed41be1146228dbc5e997d38a93aa435/scripts/youtube.request.js?v=1.3.1
-youtube.adblock.log.request = type=http-request,pattern=^https:\/\/youtubei(?:-att)?\.googleapis\.com\/youtubei\/v1\/log_event(?:\?[^#]*)?$,requires-body=1,binary-body-mode=1,max-size=16777216,timeout=30,argument=diagnostic=true,script-path=https://raw.githubusercontent.com/hmxxgit/shadowrocket-youtube-adblock/70e1d7d1ed41be1146228dbc5e997d38a93aa435/scripts/youtube.request.js?v=1.3.1
-youtube.adblock.init.response = type=http-response,pattern=^https:\/\/[\w-]+\.googlevideo\.com\/initplayback\?,requires-body=1,binary-body-mode=1,max-size=16777216,timeout=60,argument=diagnostic=true,script-path=https://raw.githubusercontent.com/hmxxgit/shadowrocket-youtube-adblock/70e1d7d1ed41be1146228dbc5e997d38a93aa435/scripts/youtube.ump.js?v=1.3.1
+youtube.adblock.response = type=http-response,pattern=^https:\/\/youtubei(?:-att)?\.googleapis\.com\/youtubei\/v1\/(browse|next|player|search|reel\/reel_watch_sequence|get_watch|config|log_event|account\/get_setting)(?:\?[^#]*)?$,requires-body=1,binary-body-mode=1,max-size=16777216,timeout=30,argument=diagnostic=true,script-path=https://raw.githubusercontent.com/hmxxgit/shadowrocket-youtube-adblock/aaa556d830563ee50d4ab07035bef83ff5183bac/scripts/youtube.response.js?v=1.3.1
+youtube.adblock.init.request = type=http-request,pattern=^https:\/\/[\w-]+\.googlevideo\.com\/initplayback\?,requires-body=1,binary-body-mode=1,max-size=16777216,timeout=30,argument=diagnostic=true,script-path=https://raw.githubusercontent.com/hmxxgit/shadowrocket-youtube-adblock/aaa556d830563ee50d4ab07035bef83ff5183bac/scripts/youtube.request.js?v=1.3.1
+youtube.adblock.log.request = type=http-request,pattern=^https:\/\/youtubei(?:-att)?\.googleapis\.com\/youtubei\/v1\/log_event(?:\?[^#]*)?$,requires-body=1,binary-body-mode=1,max-size=16777216,timeout=30,argument=diagnostic=true,script-path=https://raw.githubusercontent.com/hmxxgit/shadowrocket-youtube-adblock/aaa556d830563ee50d4ab07035bef83ff5183bac/scripts/youtube.request.js?v=1.3.1
+youtube.adblock.init.response = type=http-response,pattern=^https:\/\/[\w-]+\.googlevideo\.com\/initplayback\?,requires-body=1,binary-body-mode=1,max-size=16777216,timeout=60,argument=diagnostic=true,script-path=https://raw.githubusercontent.com/hmxxgit/shadowrocket-youtube-adblock/aaa556d830563ee50d4ab07035bef83ff5183bac/scripts/youtube.ump.js?v=1.3.1
 
 [MITM]
 hostname = %APPEND% youtubei.googleapis.com, youtubei-att.googleapis.com, *.googlevideo.com
