@@ -1,0 +1,8 @@
+{
+  "name": "shadowrocket-youtube-adblock",
+  "version": "1.0.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "scripts": {"test": "node --test test/*.test.cjs", "build": "python3 tools/build.py"},
+  "engines": {"node": ">=20"}
+}
