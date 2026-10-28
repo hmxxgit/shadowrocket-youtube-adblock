@@ -2,7 +2,9 @@
 from pathlib import Path
 import hashlib
 ROOT = Path(__file__).resolve().parent.parent
-source = (ROOT / 'vendor/youtube.response.upstream.js').read_text()
+upstream = (ROOT / 'vendor/youtube.response.upstream.js').read_bytes()
+assert hashlib.sha256(upstream).hexdigest() == 'f98483d5f5017514f82502253c0db5ce2d4ffb7839887aa2cadc22666f5a7f12', 'Review and pin the new upstream before building'
+source = upstream.decode()
 patches = [
     ('function Br(l,e){Ni(l),Si(l),Pi(l,e)}', 'function Br(l,e){Ni(l)}'),
     ('e.blackEml.includes(i)||/shorts(?!_pivot_item)/.test(i)', 'e.blackEml.includes(i)'),
