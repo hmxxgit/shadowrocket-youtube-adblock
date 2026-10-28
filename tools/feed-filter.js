@@ -148,7 +148,7 @@ function Ir(root) {
     for(const [key,value] of Object.entries(node)) {
       if(key==='richItemContents'&&Array.isArray(value)) {
         for(let i=value.length-1;i>=0;i--) {
-          if(Li(value[i])){value.splice(i,1);changed=true;}else walk(value[i]);
+          if(Li(value[i])){value.splice(i,1);srAd(true,true);changed=true;}else walk(value[i]);
         }
       }else if(Array.isArray(value))for(const child of value)walk(child);
       else walk(value);
@@ -160,11 +160,13 @@ function srRunResponse() {
   const endpoint=F.request.url.split('?')[0].split('/').pop();
   if(['browse','next','search'].includes(endpoint)) {
     const result=srRewriteFeed(F.response.bodyBytes);
-    console.log(`YouTube Adblock 1.2.0: ${endpoint} feed ${result.recognized?'inspected':'unchanged (unsupported bytes)'}; cards=${result.cards}; sections=${result.sections}`);
+    if(result.cards)srAd(true,true);
+    if(!result.recognized)srReason('feed_unsupported');
     if(result.changed)F.done({bodyBytes:result.bytes});else F.exit();
   }else {
     if(endpoint==='get_watch') {
       const filtered=srRewriteFeed(F.response.bodyBytes);
+      if(filtered.cards)srAd(true,true);
       if(filtered.changed)F.response.bodyBytes=filtered.bytes;
     }
     Ki();

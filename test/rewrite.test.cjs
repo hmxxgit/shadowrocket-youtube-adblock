@@ -62,7 +62,7 @@ test('module limits script and reject rules to intended endpoints', () => {
   assert.ok(rules.some(r=>r.test('https://rr1.googlevideo.com/dclk_video_ads?id=1')));
   assert.ok(!rules.some(r=>r.test('https://rr1.googlevideo.com/initplayback?oad=1')));
   for (const url of ['https://rr1.googlevideo.com/videoplayback?oad=1','https://rr1.googlevideo.com/initplayback?notoad=1']) assert.ok(!rules.some(r=>r.test(url)));
-  for (const path of module.matchAll(/script-path=https:\/\/raw\.githubusercontent\.com\/[^/]+\/shadowrocket-youtube-adblock\/main\/([^\s,]+)/g)) assert.ok(fs.existsSync(path[1].split("?")[0]));
+  for (const path of module.matchAll(/script-path=https:\/\/raw\.githubusercontent\.com\/[^/]+\/shadowrocket-youtube-adblock\/(?:main|[0-9a-f]{40})\/([^\s,]+)/g)) assert.ok(fs.existsSync(path[1].split("?")[0]));
   assert.equal((module.match(/script-path=/g)||[]).length,4);
 });
 

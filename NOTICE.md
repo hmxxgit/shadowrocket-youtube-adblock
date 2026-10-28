@@ -33,3 +33,9 @@ Local tests use synthetic fixtures. Neither upstream maintenance nor passing the
 ## 1.2.0 feed-specific adaptation
 
 `tools/feed-filter.js` runs a bounded, wire-preserving visitor before the fixed generated feed schema, using only exact renderer/metadata paths and explicit ad layouts. It prunes repeated list members and newly emptied known parent renderers. Unchanged fields and repeated messages keep their raw bytes. The same visitor runs before UMP/get_watch processing; account/PiP/background logic stays as in 1.1.0. Raw title/URL substring heuristics are retired. All test fixtures are synthetic and contain no captured user information. Runtime diagnostics remain local and contain only endpoint names, counts and fixed status messages.
+
+## 1.3.0 diagnostic audit
+
+No upstream protocol fields or interception hosts were added. Device-local cache invalidation is now limited to evidence implicating keys; diagnostic logs use enums and booleans only and are disabled by default. The adapter suppresses legacy bundle console calls and avoids passing the new simple diagnostic argument through upstream's JSON options parser. `DIAGNOSTICS.md` distinguishes static configuration/cryptographic fixture checks from unavailable iPhone runtime evidence. Immutable script revision references are recorded in `release.json`.
+
+Configuration references: [Shadowrocket community manual](https://github.com/LOWERTOP/Shadowrocket/wiki) (module MITM append, configuration recompilation/remote scripts), [published upstream binary script configuration](https://github.com/Maasea/sgmodule/blob/65075cdb388fc5e3094afd7e7314c67b243f3525/YouTube.Enhance.sgmodule), and [logical-rule examples](https://github.com/GMOogway/shadowrocket-rules/blob/master/docs/01.shadowrocket_configure.md). These are public configuration references, not an iPhone parser or guarantees about the user's App traffic.

@@ -10,7 +10,7 @@ for(const endpoint of ['browse','next','search'])test(`${endpoint}: remove entir
   const expected=feed([section([normal,normal])],endpoint,field(1000,Buffer.from('unknown metadata')));
   const out=run(new Uint8Array(input),endpoint);
   assert.deepEqual(Buffer.from(out.result.body),expected);
-  assert.ok(out.logs.some(x=>/cards=2; sections=/.test(x)));
+  assert.equal(out.logs.length,0,'diagnostics are disabled by default');
   assert.ok(!out.logs.some(x=>/Normal recommendation|Sponsored|pagination-token/.test(x)));
 });
 for(let variant=0;variant<metadataPaths.length;variant++)test(`metadata variant ${variant} recognized without Sponsored/pagead string`,()=>{
@@ -87,11 +87,11 @@ test('MITM remains limited and cache version is consistent for all script refere
   const pattern=new RegExp(module.match(/type=http-response,pattern=(.*?),requires-body/)[1]);
   for(const host of ['youtubei.googleapis.com','youtubei-att.googleapis.com'])for(const endpoint of ['browse','next','search'])assert.ok(pattern.test('https://'+host+'/youtubei/v1/'+endpoint+'?prettyPrint=false'));
 });
-test('local diagnostics distinguish inspected and nonbinary feeds without logging user data',()=>{
+test('opt-in local diagnostics distinguish processed and nonbinary feeds without user data',()=>{
   const marker='private_cookie_or_account_marker';
-  const first=run(new Uint8Array(feed([section([normal])])),'browse',{$request:{url:'https://youtubei.googleapis.com/youtubei/v1/browse?key='+marker,headers:{Cookie:marker}}});
-  assert.ok(first.logs.some(x=>/feed inspected; cards=0/.test(x)));
+  const first=run(new Uint8Array(feed([section([normal])])),'browse',{$argument:'diagnostic=true',$request:{url:'https://youtubei.googleapis.com/youtubei/v1/browse?key='+marker,headers:{Cookie:marker}}});
+  assert.ok(first.logs.some(x=>x.includes('"event":"finish"')));
   assert.ok(!first.logs.some(x=>x.includes(marker)));
-  const skipped=run('a non-binary response','browse');
-  assert.ok(skipped.logs.some(x=>/feed skipped \(no binary body\)/.test(x)));
+  const skipped=run('a non-binary response','browse',{$argument:'diagnostic=true'});
+  assert.ok(skipped.logs.some(x=>x.includes('"reason":"invalid_body"')));
 });
