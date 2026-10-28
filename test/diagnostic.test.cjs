@@ -239,7 +239,7 @@ test('baseline oad uses an empty successful response rather than the old v1.0 ne
   for(const name of ['youtube-adblock.module','youtube-adblock-diagnostic.module']){
     const module=fs.readFileSync(name,'utf8');
     const lines=module.split('[URL Rewrite]')[1].split('[Script]')[0].split('\n').filter(x=>x.includes('oad'));
-    assert.equal(lines.length,name.includes('-diagnostic')?3:1);assert.ok(lines[0].endsWith('_ reject-200'));
+    assert.equal(lines.length,1);assert.ok(lines[0].endsWith('_ reject-200'));
     assert.ok(!module.includes('URL-REGEX,'));
     const pattern=new RegExp(lines[0].split(' ')[0]);
     assert.ok(!pattern.test('https://rr1.googlevideo.com/initplayback?ack=1&oad=1'));
