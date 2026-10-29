@@ -6,7 +6,9 @@
 
 订阅地址不变：
 
+```text
 https://raw.githubusercontent.com/hmxxgit/shadowrocket-youtube-adblock/main/youtube-adblock.module
+```
 
 更新到 **1.5.1**，停用其他 YouTube 模块及旧副本，对当前配置执行「使用配置／编译配置」，重连 Shadowrocket，完全退出并重新打开 YouTube。保留现有代理节点。原有可信证书可以沿用，但应确认 HTTPS 解密已开启。
 
