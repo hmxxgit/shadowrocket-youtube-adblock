@@ -20,6 +20,7 @@ jobs:
           python-version: '3.x'
       - run: python3 tools/build.py
       - run: python3 tools/render-module.py hmxxgit
+      - run: python3 tools/render-test-modules.py
       - run: git diff --exit-code
       - run: node --check scripts/youtube.response.js && node --check scripts/youtube.request.js && node --check scripts/youtube.ump.js && node --check scripts/youtube.response.compat.js && node --check scripts/youtube.timing.js
       - run: npm test

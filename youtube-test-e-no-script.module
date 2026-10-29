@@ -1,0 +1,21 @@
+#!name=YT Test E - No Response Script
+#!desc=Controlled experiment E; YouTube response script disabled.
+#!version=1.5.1
+#!author=Maasea; compatibility adaptation: hmxxgit
+# Sources, original licenses and exact snapshot: NOTICE.md and vendor/
+# Script revision: 73533faad5529d727e5ada6fe9369d08adf1d273; diagnostic=false by default.
+# Disable other YouTube modules; do not combine this profile with UMP interception.
+
+[Rule]
+AND,((DOMAIN-SUFFIX,googlevideo.com), (PROTOCOL,UDP)),REJECT
+AND,((DOMAIN,youtubei.googleapis.com), (PROTOCOL,UDP)),REJECT
+
+[URL Rewrite]
+(^https?:\/\/[\w-]+\.googlevideo\.com\/(?!dclk_video_ads|initplayback(?:[/?]|$)).+?)&ctier=L(&.+?),ctier,(.+) $1$2$3 302
+^https?:\/\/[\w-]+\.googlevideo\.com\/(?!(dclk_video_ads|videoplayback\?)).+&oad _ reject-200
+^https?:\/\/(www|s)\.youtube\.com\/api\/stats\/ads _ reject-200
+^https?:\/\/(www|s)\.youtube\.com\/(pagead|ptracking) _ reject-200
+^https?:\/\/s\.youtube\.com\/api\/stats\/qoe\?adcontext _ reject-200
+
+[MITM]
+hostname = %APPEND% -redirector*.googlevideo.com,*.googlevideo.com,www.youtube.com,s.youtube.com,youtubei.googleapis.com

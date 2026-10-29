@@ -12,6 +12,77 @@ https://raw.githubusercontent.com/hmxxgit/shadowrocket-youtube-adblock/main/yout
 
 不要把旧版直接网络 `REJECT` 的 initplayback 规则与本版混用。v1.5.1 恢复 Maasea 原版 oad 空 200 条件，包括含 `&oad` 的初始化分支；不是网络 REJECT。ctier 仍排除 initplayback，其他统计与 Protobuf 过滤保留。恢复 oad 可能影响客户端回退等待，实际广告和启动速度均需真机复测。
 
+## Shadowrocket 对照测试模块
+
+以下 A–E 模块均以当前正式版 v1.5.1 为基准；注册响应脚本的模块沿用正式模块引用的同一个不可变 Raw 脚本，E 按设计不注册响应脚本。每个代码块只有一个完整订阅地址，可在 GitHub 页面直接复制。A 只改显示名称和描述；B–E 各自只改变表格中列出的单一因素。
+
+### A — YT Test A - Baseline
+
+测试目的：作为基准，完整保留当前正式模块的过滤逻辑、响应脚本、MITM、UDP 规则和 URL Rewrite。与正式版的功能差异：无，仅测试标识不同。可能损失：与正式版相同。
+
+```text
+https://raw.githubusercontent.com/hmxxgit/shadowrocket-youtube-adblock/main/youtube-test-a-baseline.module
+```
+
+### B — YT Test B - No Feed Script
+
+测试目的：检查 browse/search Protobuf 响应脚本是否造成首页或搜索卡顿。相对 A 只从 HTTP Response Script 匹配范围中移除 `browse`、`search`；player、next、get_watch 等端点、UDP、URL Rewrite、MITM 和脚本内容均保持不变。预期损失：首页和搜索信息流广告清理可能减弱，出现推广内容属于预期实验差异。
+
+```text
+https://raw.githubusercontent.com/hmxxgit/shadowrocket-youtube-adblock/main/youtube-test-b-no-feed.module
+```
+
+### C — YT Test C - No UDP Block
+
+测试目的：检查本模块的 UDP/QUIC 拒绝规则是否影响连接回退。相对 A 只移除两条模块 UDP REJECT 规则。预期损失：广告过滤行为可能因连接协议变化而不同；其他过滤规则不变。
+
+```text
+https://raw.githubusercontent.com/hmxxgit/shadowrocket-youtube-adblock/main/youtube-test-c-no-udp.module
+```
+
+### D — YT Test D - No Rewrite
+
+测试目的：检查 URL Rewrite 是否引入等待或播放问题。相对 A 只移除整个 URL Rewrite 区段；响应脚本、UDP 规则和 MITM 保持不变。预期损失：oad、ctier 与广告统计请求的 URL Rewrite 过滤将停用。
+
+```text
+https://raw.githubusercontent.com/hmxxgit/shadowrocket-youtube-adblock/main/youtube-test-d-no-rewrite.module
+```
+
+### E — YT Test E - No Response Script
+
+测试目的：隔离 YouTube Protobuf HTTP Response Script 的整体影响。相对 A 只移除该响应脚本；UDP 规则、URL Rewrite 和 MITM 保持不变。预期损失：响应中的视频、信息流和设置字段处理停用，广告过滤、后台播放及 PiP 能力都可能减弱。
+
+```text
+https://raw.githubusercontent.com/hmxxgit/shadowrocket-youtube-adblock/main/youtube-test-e-no-script.module
+```
+
+### 人工测试步骤
+
+1. 导入当轮要测的模块；确认旧轮测试模块已停用。
+2. 每轮只启用一个 YouTube 去广告模块，并停用其他可能冲突的 YouTube 模块和规则。
+3. 固定使用同一个代理节点、设备、网络及 YouTube 账号状态；除正在测试的模块因素外，不改其他配置。
+4. 确认 Shadowrocket 已应用/编译当前配置，再完全退出并重新打开官方 YouTube App。
+5. 每个版本至少做 10 次首页下拉刷新、10 次相同条件的视频搜索；记录从操作开始到内容稳定的耗时、超时及失败。另做至少 5 次普通视频启动，检查拖动进度条和连续播放。
+6. 检查视频片头/中插广告、首页推广卡片、搜索广告和 Shorts 广告；同时观察字幕、历史记录、推荐、后台播放及 PiP 是否退化。
+7. 记录每次结果；性能表填中位数、最大值和超时/失败数。样本只有 10 次时，P95 只能作为粗略参考，需注明样本量，不能视为稳定估计。
+8. 交错测试 A 与单因素版本，尽量减小网络和缓存变化的影响。建议顺序：A → B → A → C → A → D → A → E。
+
+测试顺序中确保上一个模块已停用、当前模块已启用，节点和其他网络设置保持一致，并在每次切换后重新启动 YouTube。C 只移除本模块自带的 UDP 规则；若其他 Shadowrocket 配置仍有相同拦截规则，C 不会覆盖它们，测试记录中应注明。
+
+### 测试记录（真实 iPhone 结果待填写）
+
+**所有真实 iPhone 测试结果均待用户填写。** 本仓库自动化测试只检查配置差异和本地合成响应，不代表真机加载速度或广告过滤结果。
+
+| 测试版本 | 首页刷新速度（中位数 / P95 / 最大值） | 搜索速度（中位数 / P95 / 最大值） | 视频启动速度（中位数 / P95 / 最大值） | 视频广告 | 首页广告 | 搜索广告 | Shorts 广告 | 是否卡顿 | 备注（超时/失败数） |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| A — Baseline | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 |
+| B — No Feed Script | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 |
+| C — No UDP Block | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 |
+| D — No Rewrite | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 |
+| E — No Response Script | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 |
+
+F（Fast Feed）暂不发布：现有本地性能测试采用合成 Protobuf 数据和受控计数，能验证无需修改时不重编码等代码路径，但没有可复现的真机卡顿数据来证明某项新优化能解决首页/搜索等待。无证据前不加入一个可能改变过滤行为的候选版本。
+
 ## 默认行为与比较
 
 | 项目 | 自有旧实现的差异 | v1.4.0 默认配置 |
@@ -44,6 +115,7 @@ https://raw.githubusercontent.com/hmxxgit/shadowrocket-youtube-adblock/main/yout
 ```sh
 python3 tools/build.py
 python3 tools/render-module.py hmxxgit
+python3 tools/render-test-modules.py
 npm test
 ```
 
