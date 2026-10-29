@@ -16,7 +16,7 @@ https://raw.githubusercontent.com/hmxxgit/shadowrocket-youtube-adblock/main/yout
 
 ## Shadowrocket 对照测试模块
 
-以下 A–E 模块均以当前正式版 v1.5.1 为基准；注册响应脚本的模块沿用正式模块引用的同一个不可变 Raw 脚本，E 按设计不注册响应脚本。每个代码块只有一个完整订阅地址，可在 GitHub 页面直接复制。A 只改显示名称和描述；B–E 各自只改变表格中列出的单一因素。
+以下 A–E、G 模块均以当前正式版 v1.5.1 为基准；注册响应脚本的模块沿用正式模块引用的同一个不可变 Raw 脚本，E 按设计不注册响应脚本。每个代码块只有一个完整订阅地址，可在 GitHub 页面直接复制。A 只改显示名称和描述；B–E、G 各自只改变表格中列出的单一因素。
 
 ### A — YT Test A - Baseline
 
@@ -50,6 +50,22 @@ https://raw.githubusercontent.com/hmxxgit/shadowrocket-youtube-adblock/main/yout
 https://raw.githubusercontent.com/hmxxgit/shadowrocket-youtube-adblock/main/youtube-test-d-no-rewrite.module
 ```
 
+**真实设备反馈（用户手动观察，非自动化测试）：**进入 YouTube 官方 App 的视频播放页面后出现广告。D 组广告过滤测试不通过，不推荐作为正式模块。首页刷新、搜索和视频启动性能均尚无可靠结果；具体广告类型及触发接口尚未确认。A 组对应的真机结果本次未提供，因此暂不能确认 A 与 D 的实际广告效果差异。
+
+#### D 组与 A 组的代码差异及漏拦截分析
+
+静态逐段比较确认：忽略测试显示名称和描述后，D 相对 A 只删除了整个 `[URL Rewrite]` 区段。A 与正式模块的过滤行为、规则、MITM 和脚本引用一致；D 仍保留两条 UDP REJECT、相同的 MITM hostname，以及覆盖 `browse`、`next`、`player`、`search`、`reel_watch_sequence`、`get_watch` 等接口的同一 Protobuf 响应脚本。
+
+A 被 D 删除的重写规则有：
+
+1. **googlevideo `oad` 规则：**对符合域名和路径条件、查询中带 `&oad` 的请求返回 `reject-200`，但排除 `dclk_video_ads` 和 `videoplayback`。这是最直接针对带 `oad` 标记请求的候选规则；参数顺序或路径不符合正则时不会命中。
+2. **ctier 重写：**符合条件的 googlevideo 请求以 302 去掉 `ctier=L` 片段；此规则排除 `dclk_video_ads` 和 `initplayback`。它没有显式按广告字段筛选，但可能改变匹配请求的媒体请求路径或客户端行为。
+3. **广告统计/追踪规则：**对 `/api/stats/ads`、`pagead`、`ptracking` 及带 `adcontext` 的 qoe 请求返回 `reject-200`。从接口名称看，这些更像统计与追踪请求，是否会影响广告展示流程仍属推测。
+
+Protobuf 响应过滤与 URL Rewrite 是不同处理层，可能共同影响同一播放流程：响应脚本检查 player 中的 `adPlacements`、`adSlots` 和广告追踪字段，也处理 browse/next/search 信息流及 get_watch 中的播放器/推荐内容；`oad` 规则则可能在 googlevideo 请求层提前处理部分带标记请求。D 保留了前者，但移除了后者全部五条规则。
+
+**代码与测试能证实的内容：**当前差异测试证明 D 只删 URL Rewrite；回归测试用合成 URL 验证 `oad` 的若干命中/排除情况、ctier 替换和统计端点匹配，其他 Protobuf 测试验证已知响应字段的处理。**不能证实的内容：**没有本次广告请求的 URL/接口日志或原始响应样本，现有测试也不模拟真实广告投放，因此不能将这次漏拦截唯一归因于 oad、ctier 或统计规则中的任何一条。D 的观察与“缺少一条或多条 URL Rewrite 导致漏拦截”相符，但具体原因待定位。
+
 ### E — YT Test E - No Response Script
 
 测试目的：隔离 YouTube Protobuf HTTP Response Script 的整体影响。相对 A 只移除该响应脚本；UDP 规则、URL Rewrite 和 MITM 保持不变。预期损失：响应中的视频、信息流和设置字段处理停用，广告过滤、后台播放及 PiP 能力都可能减弱。
@@ -57,6 +73,16 @@ https://raw.githubusercontent.com/hmxxgit/shadowrocket-youtube-adblock/main/yout
 ```text
 https://raw.githubusercontent.com/hmxxgit/shadowrocket-youtube-adblock/main/youtube-test-e-no-script.module
 ```
+
+### G — YT Test G - No OAD Rewrite
+
+测试目的：以最少变量优先检查最直接针对广告请求的 `oad` 规则。相对 A 只删除 googlevideo `&oad` 的 `reject-200` 重写；ctier、三条统计/追踪重写、Protobuf 脚本、UDP 和 MITM 均保留。G 是诊断用版本，不推荐作为正式模块；预期是带 `oad` 且匹配条件的广告请求可能放行。
+
+```text
+https://raw.githubusercontent.com/hmxxgit/shadowrocket-youtube-adblock/main/youtube-test-g-no-oad.module
+```
+
+下一步建议在相同网络、账号和节点下交错测试 **A → G → A**，且每轮只启用一个模块并重启 YouTube。若广告只在 G 出现而两次 A 均未出现，才有重复观察支持 `oad` 规则参与了拦截；若 A 也出现广告，则这轮比较不能说明是 G 的改动导致。记录播放页观察到的广告类型；具体触发接口仍需另有安全的本地请求证据确认。
 
 ### 人工测试步骤
 
@@ -67,21 +93,22 @@ https://raw.githubusercontent.com/hmxxgit/shadowrocket-youtube-adblock/main/yout
 5. 每个版本至少做 10 次首页下拉刷新、10 次相同条件的视频搜索；记录从操作开始到内容稳定的耗时、超时及失败。另做至少 5 次普通视频启动，检查拖动进度条和连续播放。
 6. 检查视频片头/中插广告、首页推广卡片、搜索广告和 Shorts 广告；同时观察字幕、历史记录、推荐、后台播放及 PiP 是否退化。
 7. 记录每次结果；性能表填中位数、最大值和超时/失败数。样本只有 10 次时，P95 只能作为粗略参考，需注明样本量，不能视为稳定估计。
-8. 交错测试 A 与单因素版本，尽量减小网络和缓存变化的影响。建议顺序：A → B → A → C → A → D → A → E。
+8. 交错测试 A 与单因素版本，尽量减小网络和缓存变化的影响。建议顺序：A → B → A → C → A → D → A → E；下一轮针对 D 的漏拦截，优先做 A → G → A。
 
 测试顺序中确保上一个模块已停用、当前模块已启用，节点和其他网络设置保持一致，并在每次切换后重新启动 YouTube。C 只移除本模块自带的 UDP 规则；若其他 Shadowrocket 配置仍有相同拦截规则，C 不会覆盖它们，测试记录中应注明。
 
 ### 测试记录（真实 iPhone 结果待填写）
 
-**所有真实 iPhone 测试结果均待用户填写。** 本仓库自动化测试只检查配置差异和本地合成响应，不代表真机加载速度或广告过滤结果。
+**除 D 行所列用户手动观察外，其他真实 iPhone 测试结果均待填写。** D 组反馈不是自动化测试；本仓库自动化测试只检查配置差异和本地合成响应，不代表真机加载速度或广告过滤结果。
 
 | 测试版本 | 首页刷新速度（中位数 / P95 / 最大值） | 搜索速度（中位数 / P95 / 最大值） | 视频启动速度（中位数 / P95 / 最大值） | 视频广告 | 首页广告 | 搜索广告 | Shorts 广告 | 是否卡顿 | 备注（超时/失败数） |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | A — Baseline | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 |
 | B — No Feed Script | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 |
 | C — No UDP Block | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 |
-| D — No Rewrite | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 |
+| D — No Rewrite | 尚无可靠结果 | 尚无可靠结果 | 尚无可靠结果 | 播放页观察到广告 | 未确认 | 未确认 | 未确认 | 未确认 | 用户手动观察；广告类型/接口未确认 |
 | E — No Response Script | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 |
+| G — No OAD Rewrite | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 |
 
 F（Fast Feed）暂不发布：现有本地性能测试采用合成 Protobuf 数据和受控计数，能验证无需修改时不重编码等代码路径，但没有可复现的真机卡顿数据来证明某项新优化能解决首页/搜索等待。无证据前不加入一个可能改变过滤行为的候选版本。
 
@@ -110,7 +137,7 @@ F（Fast Feed）暂不发布：现有本地性能测试采用合成 Protobuf 数
 
 符合原版条件的 oad 请求在 URL Rewrite 阶段返回空 200；不含 &oad 的普通初始化不受此规则影响，默认不调用 UMP。`script http response sends data to client` 也不能证明清理了广告；播放器脚本是否识别并清理已有字段，以 `[YTAD]` 的 found/cleaned/finish 为准。
 
-用户验证的是参考模块；**本仓库 v1.5.1 尚未获得新的 iPhone 实测证据**。本地规则/响应对照通过，不代表实际广告全部消失，也不能保证所有 App/地区/账号下的后台播放、锁屏音频、PiP 或系统控制中心行为。正常媒体 CDN 不被整体阻断，videoplayback 不被 oad 规则拒绝，但会按基准条件执行 ctier 重定向。
+本轮唯一新增的真实设备证据是用户报告 D 组在视频播放页出现广告；它不证明 A 组是否通过，也未定位广告类型或请求接口。其他性能与过滤结果仍待测。本地规则/响应对照通过，不代表实际广告全部消失，也不能保证所有 App/地区/账号下的后台播放、锁屏音频、PiP 或系统控制中心行为。正常媒体 CDN 不被整体阻断，videoplayback 不被 oad 规则拒绝，但会按基准条件执行 ctier 重定向。
 
 ## 开发与发布
 

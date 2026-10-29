@@ -12,6 +12,7 @@ const variants={
   C:read('youtube-test-c-no-udp.module'),
   D:read('youtube-test-d-no-rewrite.module'),
   E:read('youtube-test-e-no-script.module'),
+  G:read('youtube-test-g-no-oad.module'),
 };
 const definitions={
   A:['youtube-test-a-baseline.module','YT Test A - Baseline','Controlled experiment A; exact active production behavior.'],
@@ -19,6 +20,7 @@ const definitions={
   C:['youtube-test-c-no-udp.module','YT Test C - No UDP Block','Controlled experiment C; module UDP rejection rules removed.'],
   D:['youtube-test-d-no-rewrite.module','YT Test D - No Rewrite','Controlled experiment D; URL Rewrite section removed.'],
   E:['youtube-test-e-no-script.module','YT Test E - No Response Script','Controlled experiment E; YouTube response script disabled.'],
+  G:['youtube-test-g-no-oad.module','YT Test G - No OAD Rewrite','Controlled experiment G; only the googlevideo oad rewrite is disabled.'],
 };
 const udpRules=[
   'AND,((DOMAIN-SUFFIX,googlevideo.com), (PROTOCOL,UDP)),REJECT',
@@ -84,8 +86,23 @@ test('E removes only the HTTP response Script section',()=>{
   assert.doesNotMatch(variants.E,/type=http-response/);
 });
 
+test('G disables only the googlevideo oad rewrite and retains other URL rewrites',()=>{
+  const base=normalizeMetadata(variants.A);
+  const oadRule=base.split('[URL Rewrite]\n')[1].split('[Script]')[0].split('\n').find(line=>line.endsWith('&oad _ reject-200'));
+  assert.ok(oadRule,'baseline needs the googlevideo oad rewrite');
+  assert.equal(base.split(oadRule).length-1,1);
+  assert.equal(base.replace(oadRule+'\n',''),normalizeMetadata(variants.G));
+  const remaining=variants.G.split('[URL Rewrite]\n')[1].split('[Script]')[0].trim().split('\n');
+  assert.equal(remaining.length,4);
+  assert.ok(remaining[0].includes('&ctier=L'));
+  assert.ok(remaining.slice(1).every(line=>line.endsWith('reject-200')));
+  assert.ok(remaining.some(line=>line.includes('pagead')));
+  assert.ok(remaining.some(line=>line.includes('stats')));
+  assert.ok(remaining.some(line=>line.includes('qoe')));
+});
+
 test('module sections and rewrite/script regexes remain structurally valid',()=>{
-  for(const key of ['A','B','C','D']){
+  for(const key of ['A','B','C','D','G']){
     assert.deepEqual(sections(variants[key]),key==='D'?['Rule','Script','MITM']:['Rule','URL Rewrite','Script','MITM']);
     const pattern=responsePattern(variants[key]);
     assert.ok(pattern.startsWith('^https'));
@@ -127,4 +144,15 @@ test('README contains one standalone raw URL code block for each generated modul
     assert.equal(readme.split(url).length-1,1,url);
     assert.ok(readme.includes(`\`\`\`text\n${url}\n\`\`\``),url);
   }
+});
+
+test('README records D only as a user-reported ad leak with unresolved cause/performance',()=>{
+  const readme=read('README.md');
+  const d=readme.split('### D — YT Test D - No Rewrite')[1]?.split('### E — YT Test E - No Response Script')[0];
+  assert.ok(d);
+  assert.match(d,/真实设备.*用户.*非自动化测试/s);
+  assert.match(d,/进入 YouTube 官方 App 的视频播放页面后出现广告/);
+  assert.match(d,/原因待定位|待进一步定位/);
+  assert.match(readme,/D.*尚无可靠结果/);
+  assert.doesNotMatch(d,/首页刷新.*通过|搜索性能.*通过/);
 });

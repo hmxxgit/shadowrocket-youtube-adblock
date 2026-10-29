@@ -1,4 +1,4 @@
-"""Render controlled A-E Shadowrocket modules from the checked-in release module."""
+"""Render controlled A-E and G Shadowrocket modules from the checked-in release module."""
 from pathlib import Path
 import re
 
@@ -31,6 +31,11 @@ TESTS = {
         "YT Test E - No Response Script",
         "Controlled experiment E; YouTube response script disabled.",
     ),
+    "G": (
+        "youtube-test-g-no-oad.module",
+        "YT Test G - No OAD Rewrite",
+        "Controlled experiment G; only the googlevideo oad rewrite is disabled.",
+    ),
 }
 
 UDP_RULES = (
@@ -39,6 +44,7 @@ UDP_RULES = (
 )
 FULL_ENDPOINTS = r"(browse|next|player|search|reel\/reel_watch_sequence|guide|account\/get_setting|get_watch)"
 NO_FEED_ENDPOINTS = r"(next|player|reel\/reel_watch_sequence|guide|account\/get_setting|get_watch)"
+OAD_RULE = r"^https?:\/\/[\w-]+\.googlevideo\.com\/(?!(dclk_video_ads|videoplayback\?)).+&oad _ reject-200"
 
 
 def replace_once(text: str, old: str, new: str, description: str) -> str:
@@ -70,6 +76,10 @@ def remove_udp_rules(text: str) -> str:
     return text
 
 
+def remove_oad_rule(text: str) -> str:
+    return replace_once(text, OAD_RULE + "\n", "", "googlevideo oad rewrite")
+
+
 def remove_section(text: str, section: str, next_section: str) -> str:
     pattern = rf"(?ms)^\[{re.escape(section)}\]\n.*?(?=^\[{re.escape(next_section)}\]\n)"
     updated, count = re.subn(pattern, "", text, count=1)
@@ -92,6 +102,7 @@ def make_variants(production: str) -> dict[str, str]:
     variants["C"] = remove_udp_rules(variants["C"])
     variants["D"] = remove_section(variants["D"], "URL Rewrite", "Script")
     variants["E"] = remove_section(variants["E"], "Script", "MITM")
+    variants["G"] = remove_oad_rule(variants["G"])
     return variants
 
 
@@ -115,6 +126,9 @@ def validate(production: str, variants: dict[str, str]) -> None:
         elif key == "E":
             if remove_section(normalized_a, "Script", "MITM") != normalized:
                 raise ValueError("E changes content beyond the response Script section")
+        elif key == "G":
+            if remove_oad_rule(normalized_a) != normalized:
+                raise ValueError("G changes content beyond the googlevideo oad rewrite")
         if not name or not description:
             raise ValueError(f"Missing test metadata for {key}")
 
